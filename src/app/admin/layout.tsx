@@ -9,30 +9,79 @@ import {
 } from 'lucide-react'
 
 const navItems = [
-  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/admin/menu', label: 'Menu', icon: UtensilsCrossed },
-  { href: '/admin/orders', label: 'Orders', icon: ShoppingBag },
-  { href: '/admin/staff', label: 'Staff', icon: Users },
-  { href: '/admin/settings', label: 'Settings', icon: Settings },
+  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard' },
+  { href: '/admin/menu', label: 'Menu', icon: UtensilsCrossed, permission: 'menu' },
+  { href: '/admin/orders', label: 'Orders', icon: ShoppingBag, permission: 'orders' },
+  { href: '/admin/staff', label: 'Staff', icon: Users, permission: 'staff' },
+  { href: '/admin/settings', label: 'Settings', icon: Settings, permission: 'settings' },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [userEmail, setUserEmail] = useState('')
+  const [staff, setStaff] = useState<any>(null)
+  const [loadingAuth, setLoadingAuth] = useState(true)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) router.push('/login')
-      else setUserEmail(data.user.email || '')
-    })
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { router.push('/login'); return }
+      setUserEmail(user.email || '')
+
+      const { data: staffData } = await supabase
+        .from('staff')
+        .select('*')
+        .eq('auth_id', user.id)
+        .single()
+
+      if (staffData) {
+        setStaff(staffData)
+      } else {
+        // Check if owner by email
+        const { data: ownerData } = await supabase
+          .from('staff')
+          .select('*')
+          .eq('email', user.email)
+          .single()
+        if (ownerData) {
+          // Link auth_id
+          await supabase.from('staff').update({ auth_id: user.id }).eq('id', ownerData.id)
+          setStaff({ ...ownerData, auth_id: user.id })
+        } else {
+          setStaff({ role: 'owner', permissions: {} })
+        }
+      }
+      setLoadingAuth(false)
+    }
+    init()
   }, [])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
     router.push('/login')
+  }
+
+  const canAccess = (permission: string) => {
+    if (!staff) return false
+    if (staff.role === 'owner') return true
+    return staff.permissions?.[permission] === true
+  }
+
+  const visibleNav = navItems.filter(item => canAccess(item.permission))
+
+  if (loadingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#f5f5f5' }}>
+        <div className="text-center">
+          <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin mx-auto mb-3"
+            style={{ borderColor: '#F5C800', borderTopColor: 'transparent' }} />
+          <p className="text-sm" style={{ color: '#888' }}>Loading...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -43,10 +92,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         style={{ backgroundColor: '#1A1A1A' }}>
         <div className="p-6" style={{ borderBottom: '1px solid #2a2a2a' }}>
           <h1 className="text-2xl font-bold" style={{ color: '#F5C800' }}>Angie's</h1>
-          <p className="text-xs mt-1" style={{ color: '#666' }}>Admin Panel</p>
+          <p className="text-xs mt-1" style={{ color: '#666' }}>
+            {staff?.role === 'owner' ? 'Owner' : staff?.role === 'kitchen' ? 'Kitchen' : 'Staff'} Panel
+          </p>
         </div>
         <nav className="flex-1 p-4 space-y-1">
-          {navItems.map(({ href, label, icon: Icon }) => (
+          {visibleNav.map(({ href, label, icon: Icon }) => (
             <Link key={href} href={href}
               onClick={() => setSidebarOpen(false)}
               className="flex items-center gap-3 px-4 py-3 rounded-xl transition text-sm font-medium"
@@ -60,7 +111,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           ))}
         </nav>
         <div className="p-4" style={{ borderTop: '1px solid #2a2a2a' }}>
-          <p className="text-xs mb-3 truncate" style={{ color: '#555' }}>{userEmail}</p>
+          <p className="text-xs mb-1 truncate" style={{ color: '#555' }}>{userEmail}</p>
+          <p className="text-xs mb-3 capitalize" style={{ color: '#444' }}>{staff?.name || ''}</p>
           <button onClick={handleLogout}
             className="flex items-center gap-2 text-sm w-full transition"
             style={{ color: '#aaa' }}
