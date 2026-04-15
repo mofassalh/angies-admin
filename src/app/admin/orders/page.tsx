@@ -75,6 +75,7 @@ export default function OrdersPage() {
     await supabase.from('orders').update({ status }).eq('id', id)
     fetchOrders()
     if (selected) setSelected({ ...selected, status })
+    setTimeout(() => setSelected(null), 500)
   }
 
   const filtered = filterStatus === 'all' ? orders : orders.filter(o => o.status === filterStatus)
