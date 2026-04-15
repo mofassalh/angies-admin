@@ -73,6 +73,8 @@ export default function OrdersPage() {
 
   const updateStatus = async (id: string, status: string) => {
     await supabase.from('orders').update({ status }).eq('id', id)
+    fetchOrders()
+    if (selected) setSelected({ ...selected, status })
   }
 
   const filtered = filterStatus === 'all' ? orders : orders.filter(o => o.status === filterStatus)
