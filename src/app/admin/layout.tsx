@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import {
-  LayoutDashboard, UtensilsCrossed, ShoppingBag,
+  LayoutDashboard, UtensilsCrossed, ShoppingBag, MapPin,
   Users, Settings, LogOut, Menu
 } from 'lucide-react'
 
@@ -12,6 +12,7 @@ const navItems = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard' },
   { href: '/admin/menu', label: 'Menu', icon: UtensilsCrossed, permission: 'menu' },
   { href: '/admin/orders', label: 'Orders', icon: ShoppingBag, permission: 'orders' },
+  { href: '/admin/locations', label: 'Locations', icon: MapPin, permission: 'locations' },
   { href: '/admin/staff', label: 'Staff', icon: Users, permission: 'staff' },
   { href: '/admin/settings', label: 'Settings', icon: Settings, permission: 'settings' },
 ]
