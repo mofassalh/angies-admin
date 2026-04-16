@@ -1,7 +1,7 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Eye, X, Bell } from 'lucide-react'
+import { Eye, X, Bell, MapPin } from 'lucide-react'
 
 type Order = {
   id: string
@@ -34,29 +34,31 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Order | null>(null)
   const [filterStatus, setFilterStatus] = useState('all')
+  const [filterLocations, setFilterLocations] = useState<string[]>([])
+  const [locations, setLocations] = useState<string[]>([])
   const [newOrderIds, setNewOrderIds] = useState<Set<string>>(new Set())
   const [newOrderAlert, setNewOrderAlert] = useState<string | null>(null)
   const supabase = createClient()
 
   const fetchOrders = async () => {
     const { data } = await supabase.from('orders').select('*').order('created_at', { ascending: false })
-    setOrders(data || [])
+    const allOrders = data || []
+    setOrders(allOrders)
+    // Extract unique locations
+    const locs = [...new Set(allOrders.map((o: Order) => o.location).filter(Boolean))] as string[]
+    setLocations(locs)
     setLoading(false)
   }
 
   useEffect(() => {
     fetchOrders()
-
     const channel = supabase
       .channel('orders-realtime')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'orders'
-      }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
         if (payload.eventType === 'INSERT') {
           const newOrder = payload.new as Order
           setOrders(prev => [newOrder, ...prev])
+          setLocations(prev => newOrder.location && !prev.includes(newOrder.location) ? [...prev, newOrder.location] : prev)
           setNewOrderIds(prev => new Set([...prev, newOrder.id]))
           setNewOrderAlert(newOrder.customer_name || 'New order')
           setTimeout(() => {
@@ -72,15 +74,24 @@ export default function OrdersPage() {
         }
       })
       .subscribe()
-
     return () => { supabase.removeChannel(channel) }
   }, [])
+
+  const toggleLocation = (loc: string) => {
+    setFilterLocations(prev =>
+      prev.includes(loc) ? prev.filter(l => l !== loc) : [...prev, loc]
+    )
+  }
 
   const updateStatus = async (id: string, status: string) => {
     await supabase.from('orders').update({ status }).eq('id', id)
   }
 
-  const filtered = filterStatus === 'all' ? orders : orders.filter(o => o.status === filterStatus)
+  const filtered = orders.filter(o => {
+    const statusMatch = filterStatus === 'all' || o.status === filterStatus
+    const locationMatch = filterLocations.length === 0 || filterLocations.includes(o.location)
+    return statusMatch && locationMatch
+  })
 
   const formatDate = (d: string) => new Date(d).toLocaleString('en-AU', {
     day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
@@ -88,7 +99,6 @@ export default function OrdersPage() {
 
   return (
     <div>
-      {/* New order alert */}
       {newOrderAlert && (
         <div className="fixed top-4 right-4 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl"
           style={{ backgroundColor: '#F5C800', color: '#1A1A1A' }}>
@@ -100,7 +110,7 @@ export default function OrdersPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold" style={{ color: '#1A1A1A' }}>Orders</h2>
-          <p className="text-sm mt-1" style={{ color: '#888' }}>{orders.length} total orders</p>
+          <p className="text-sm mt-1" style={{ color: '#888' }}>{filtered.length} of {orders.length} orders</p>
         </div>
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full inline-block animate-pulse" style={{ backgroundColor: '#22c55e' }}></span>
@@ -108,13 +118,42 @@ export default function OrdersPage() {
         </div>
       </div>
 
+      {/* Location Filter */}
+      {locations.length > 0 && (
+        <div className="mb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <MapPin size={14} style={{ color: '#888' }} />
+            <span className="text-xs font-medium" style={{ color: '#888' }}>Filter by Location</span>
+            {filterLocations.length > 0 && (
+              <button onClick={() => setFilterLocations([])} className="text-xs underline" style={{ color: '#F5C800' }}>
+                Clear
+              </button>
+            )}
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            {locations.map(loc => (
+              <button key={loc} onClick={() => toggleLocation(loc)}
+                className="px-3 py-1.5 rounded-full text-xs font-medium transition-all"
+                style={{
+                  backgroundColor: filterLocations.includes(loc) ? '#F5C800' : '#fff',
+                  color: filterLocations.includes(loc) ? '#1A1A1A' : '#666',
+                  border: filterLocations.includes(loc) ? '1px solid #F5C800' : '1px solid #e5e5e5',
+                }}>
+                {filterLocations.includes(loc) ? '✓ ' : ''}{loc}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Status Filter */}
       <div className="flex gap-2 mb-6 flex-wrap">
         {['all', ...STATUSES].map(s => (
           <button key={s} onClick={() => setFilterStatus(s)}
             className="px-3 py-1 rounded-full text-sm font-medium capitalize"
             style={{
-              backgroundColor: filterStatus === s ? '#F5C800' : '#fff',
-              color: filterStatus === s ? '#1A1A1A' : '#666',
+              backgroundColor: filterStatus === s ? '#1A1A1A' : '#fff',
+              color: filterStatus === s ? '#fff' : '#666',
               border: '1px solid #e5e5e5'
             }}>
             {s}
@@ -133,6 +172,7 @@ export default function OrdersPage() {
               <tr style={{ borderBottom: '1px solid #e5e5e5', backgroundColor: '#fafafa' }}>
                 <th className="text-left px-6 py-3 font-semibold" style={{ color: '#888' }}>#</th>
                 <th className="text-left px-6 py-3 font-semibold" style={{ color: '#888' }}>Customer</th>
+                <th className="text-left px-6 py-3 font-semibold" style={{ color: '#888' }}>Location</th>
                 <th className="text-left px-6 py-3 font-semibold" style={{ color: '#888' }}>Type</th>
                 <th className="text-left px-6 py-3 font-semibold" style={{ color: '#888' }}>Total</th>
                 <th className="text-left px-6 py-3 font-semibold" style={{ color: '#888' }}>Status</th>
@@ -158,6 +198,9 @@ export default function OrdersPage() {
                     <td className="px-6 py-4" style={{ color: '#1A1A1A' }}>
                       <div className="font-medium">{order.customer_name || '—'}</div>
                       {order.customer_phone && <div className="text-xs" style={{ color: '#aaa' }}>{order.customer_phone}</div>}
+                    </td>
+                    <td className="px-6 py-4 text-xs font-medium" style={{ color: '#555' }}>
+                      {order.location || '—'}
                     </td>
                     <td className="px-6 py-4 capitalize text-xs" style={{ color: '#555' }}>{order.order_type || '—'}</td>
                     <td className="px-6 py-4 font-semibold" style={{ color: '#1A1A1A' }}>${parseFloat(String(order.total)).toFixed(2)}</td>
