@@ -1,7 +1,7 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Eye, X } from 'lucide-react'
+import { Eye, X, Bell } from 'lucide-react'
 
 type Order = {
   id: string
@@ -10,10 +10,11 @@ type Order = {
   customer_phone: string
   customer_address: string
   order_type: string
+  location: string
   items: any[]
   total: number
   status: string
-  payment_status: string
+  notes: string
   created_at: string
 }
 
@@ -33,7 +34,8 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Order | null>(null)
   const [filterStatus, setFilterStatus] = useState('all')
-  const [newOrderId, setNewOrderId] = useState<string | null>(null)
+  const [newOrderIds, setNewOrderIds] = useState<Set<string>>(new Set())
+  const [newOrderAlert, setNewOrderAlert] = useState<string | null>(null)
   const supabase = createClient()
 
   const fetchOrders = async () => {
@@ -45,7 +47,6 @@ export default function OrdersPage() {
   useEffect(() => {
     fetchOrders()
 
-    // Real-time subscription
     const channel = supabase
       .channel('orders-realtime')
       .on('postgres_changes', {
@@ -54,14 +55,18 @@ export default function OrdersPage() {
         table: 'orders'
       }, (payload) => {
         if (payload.eventType === 'INSERT') {
-          setOrders(prev => [payload.new as Order, ...prev])
-          setNewOrderId((payload.new as Order).id)
-          setTimeout(() => setNewOrderId(null), 3000)
+          const newOrder = payload.new as Order
+          setOrders(prev => [newOrder, ...prev])
+          setNewOrderIds(prev => new Set([...prev, newOrder.id]))
+          setNewOrderAlert(newOrder.customer_name || 'New order')
+          setTimeout(() => {
+            setNewOrderIds(prev => { const s = new Set(prev); s.delete(newOrder.id); return s })
+          }, 5000)
+          setTimeout(() => setNewOrderAlert(null), 4000)
         } else if (payload.eventType === 'UPDATE') {
-          setOrders(prev => prev.map(o => o.id === (payload.new as Order).id ? payload.new as Order : o))
-          if (selected?.id === (payload.new as Order).id) {
-            setSelected(payload.new as Order)
-          }
+          const updated = payload.new as Order
+          setOrders(prev => prev.map(o => o.id === updated.id ? updated : o))
+          setSelected(prev => prev?.id === updated.id ? updated : prev)
         } else if (payload.eventType === 'DELETE') {
           setOrders(prev => prev.filter(o => o.id !== payload.old.id))
         }
@@ -73,9 +78,6 @@ export default function OrdersPage() {
 
   const updateStatus = async (id: string, status: string) => {
     await supabase.from('orders').update({ status }).eq('id', id)
-    fetchOrders()
-    if (selected) setSelected({ ...selected, status })
-    setTimeout(() => setSelected(null), 500)
   }
 
   const filtered = filterStatus === 'all' ? orders : orders.filter(o => o.status === filterStatus)
@@ -86,6 +88,15 @@ export default function OrdersPage() {
 
   return (
     <div>
+      {/* New order alert */}
+      {newOrderAlert && (
+        <div className="fixed top-4 right-4 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl"
+          style={{ backgroundColor: '#F5C800', color: '#1A1A1A' }}>
+          <Bell size={18} />
+          <span className="font-semibold text-sm">New order from {newOrderAlert}!</span>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold" style={{ color: '#1A1A1A' }}>Orders</h2>
@@ -97,7 +108,6 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* Filter */}
       <div className="flex gap-2 mb-6 flex-wrap">
         {['all', ...STATUSES].map(s => (
           <button key={s} onClick={() => setFilterStatus(s)}
@@ -112,7 +122,6 @@ export default function OrdersPage() {
         ))}
       </div>
 
-      {/* Table */}
       <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: '#fff', border: '1px solid #e5e5e5' }}>
         {loading ? (
           <p className="p-6 text-sm" style={{ color: '#aaa' }}>Loading...</p>
@@ -134,16 +143,16 @@ export default function OrdersPage() {
             <tbody>
               {filtered.map((order, i) => {
                 const sc = STATUS_COLORS[order.status] || STATUS_COLORS.pending
-                const isNew = order.id === newOrderId
+                const isNew = newOrderIds.has(order.id)
                 return (
                   <tr key={order.id}
                     style={{
                       borderBottom: i < filtered.length - 1 ? '1px solid #f0f0f0' : 'none',
                       backgroundColor: isNew ? '#fffde7' : 'transparent',
-                      transition: 'background-color 0.5s'
+                      transition: 'background-color 1s'
                     }}>
                     <td className="px-6 py-4 font-mono text-xs" style={{ color: '#888' }}>
-                      #{order.order_number || order.id.slice(0, 6)}
+                      {order.order_number || '#' + order.id.slice(0, 6)}
                       {isNew && <span className="ml-2 px-1.5 py-0.5 rounded text-xs font-bold" style={{ backgroundColor: '#F5C800', color: '#1A1A1A' }}>NEW</span>}
                     </td>
                     <td className="px-6 py-4" style={{ color: '#1A1A1A' }}>
@@ -151,7 +160,7 @@ export default function OrdersPage() {
                       {order.customer_phone && <div className="text-xs" style={{ color: '#aaa' }}>{order.customer_phone}</div>}
                     </td>
                     <td className="px-6 py-4 capitalize text-xs" style={{ color: '#555' }}>{order.order_type || '—'}</td>
-                    <td className="px-6 py-4 font-semibold" style={{ color: '#1A1A1A' }}>${order.total || 0}</td>
+                    <td className="px-6 py-4 font-semibold" style={{ color: '#1A1A1A' }}>${parseFloat(String(order.total)).toFixed(2)}</td>
                     <td className="px-6 py-4">
                       <span className="px-2 py-1 rounded-full text-xs font-medium capitalize"
                         style={{ backgroundColor: sc.bg, color: sc.text }}>
@@ -174,7 +183,6 @@ export default function OrdersPage() {
         )}
       </div>
 
-      {/* Order Detail Modal */}
       {selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center"
           style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
@@ -182,7 +190,7 @@ export default function OrdersPage() {
             style={{ backgroundColor: '#fff' }}>
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-bold" style={{ color: '#1A1A1A' }}>
-                Order #{selected.order_number || selected.id.slice(0, 6)}
+                Order {selected.order_number || '#' + selected.id.slice(0, 6)}
               </h3>
               <button onClick={() => setSelected(null)} style={{ color: '#aaa' }}><X size={20} /></button>
             </div>
@@ -191,8 +199,10 @@ export default function OrdersPage() {
               <h4 className="font-semibold text-sm mb-2" style={{ color: '#1A1A1A' }}>Customer</h4>
               <p className="text-sm" style={{ color: '#555' }}>{selected.customer_name || '—'}</p>
               <p className="text-sm" style={{ color: '#555' }}>{selected.customer_phone || '—'}</p>
-              <p className="text-sm" style={{ color: '#555' }}>{selected.customer_address || '—'}</p>
+              {selected.customer_address && <p className="text-sm" style={{ color: '#555' }}>{selected.customer_address}</p>}
               <p className="text-sm capitalize mt-1" style={{ color: '#888' }}>Type: {selected.order_type}</p>
+              {selected.location && <p className="text-sm" style={{ color: '#888' }}>Location: {selected.location}</p>}
+              {selected.notes && <p className="text-sm mt-1 italic" style={{ color: '#aaa' }}>Note: {selected.notes}</p>}
             </div>
 
             <div className="rounded-xl p-4 mb-4" style={{ backgroundColor: '#f9f9f9' }}>
@@ -202,13 +212,13 @@ export default function OrdersPage() {
                   <div key={i} className="py-2" style={{ borderBottom: i < selected.items.length - 1 ? '1px solid #eee' : 'none' }}>
                     <div className="flex justify-between text-sm">
                       <span style={{ color: '#333' }}>{item.name} x{item.quantity || 1}</span>
-                      <span style={{ color: '#1A1A1A' }}>${item.price}</span>
+                      <span style={{ color: '#1A1A1A' }}>${parseFloat(String(item.lineTotal || item.price)).toFixed(2)}</span>
                     </div>
-                    {item.selectedOptions && Object.entries(item.selectedOptions).map(([section, options]: any) => (
-                      <div key={section} className="text-xs mt-1 ml-2" style={{ color: '#888' }}>
-                        {section}: {Array.isArray(options) ? options.map((o: any) => o.name).join(', ') : options?.name}
+                    {item.selectedOptions && item.selectedOptions.length > 0 && (
+                      <div className="text-xs mt-1 ml-2" style={{ color: '#888' }}>
+                        {item.selectedOptions.map((o: any) => o.optionName).join(', ')}
                       </div>
-                    ))}
+                    )}
                   </div>
                 ))
               ) : (
@@ -217,7 +227,7 @@ export default function OrdersPage() {
               <div className="flex justify-between font-bold text-sm mt-3 pt-3"
                 style={{ borderTop: '1px solid #e5e5e5' }}>
                 <span>Total</span>
-                <span style={{ color: '#F5C800' }}>${selected.total}</span>
+                <span style={{ color: '#F5C800' }}>${parseFloat(String(selected.total)).toFixed(2)}</span>
               </div>
             </div>
 
