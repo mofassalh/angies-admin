@@ -38,13 +38,13 @@ export default function OrdersPage() {
   const [locations, setLocations] = useState<string[]>([])
   const [newOrderIds, setNewOrderIds] = useState<Set<string>>(new Set())
   const [newOrderAlert, setNewOrderAlert] = useState<string | null>(null)
+  const [updatingStatus, setUpdatingStatus] = useState(false)
   const supabase = createClient()
 
   const fetchOrders = async () => {
     const { data } = await supabase.from('orders').select('*').order('created_at', { ascending: false })
     const allOrders = data || []
     setOrders(allOrders)
-    // Extract unique locations
     const locs = [...new Set(allOrders.map((o: Order) => o.location).filter(Boolean))] as string[]
     setLocations(locs)
     setLoading(false)
@@ -84,7 +84,13 @@ export default function OrdersPage() {
   }
 
   const updateStatus = async (id: string, status: string) => {
+    setUpdatingStatus(true)
     await supabase.from('orders').update({ status }).eq('id', id)
+    // Immediately update local state
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o))
+    setSelected(prev => prev?.id === id ? { ...prev, status } : prev)
+    setUpdatingStatus(false)
+    setSelected(null)
   }
 
   const filtered = orders.filter(o => {
@@ -118,7 +124,6 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* Location Filter */}
       {locations.length > 0 && (
         <div className="mb-4">
           <div className="flex items-center gap-2 mb-2">
@@ -146,7 +151,6 @@ export default function OrdersPage() {
         </div>
       )}
 
-      {/* Status Filter */}
       <div className="flex gap-2 mb-6 flex-wrap">
         {['all', ...STATUSES].map(s => (
           <button key={s} onClick={() => setFilterStatus(s)}
@@ -199,9 +203,7 @@ export default function OrdersPage() {
                       <div className="font-medium">{order.customer_name || '—'}</div>
                       {order.customer_phone && <div className="text-xs" style={{ color: '#aaa' }}>{order.customer_phone}</div>}
                     </td>
-                    <td className="px-6 py-4 text-xs font-medium" style={{ color: '#555' }}>
-                      {order.location || '—'}
-                    </td>
+                    <td className="px-6 py-4 text-xs font-medium" style={{ color: '#555' }}>{order.location || '—'}</td>
                     <td className="px-6 py-4 capitalize text-xs" style={{ color: '#555' }}>{order.order_type || '—'}</td>
                     <td className="px-6 py-4 font-semibold" style={{ color: '#1A1A1A' }}>${parseFloat(String(order.total)).toFixed(2)}</td>
                     <td className="px-6 py-4">
@@ -280,15 +282,17 @@ export default function OrdersPage() {
                 {STATUSES.map(s => {
                   const sc = STATUS_COLORS[s]
                   return (
-                    <button key={s} onClick={() => updateStatus(selected.id, s)}
-                      className="px-3 py-1.5 rounded-full text-xs font-medium capitalize"
+                    <button key={s}
+                      onClick={() => updateStatus(selected.id, s)}
+                      disabled={updatingStatus || selected.status === s}
+                      className="px-3 py-1.5 rounded-full text-xs font-medium capitalize transition-all disabled:opacity-50"
                       style={{
                         backgroundColor: selected.status === s ? sc.bg : '#f5f5f5',
                         color: selected.status === s ? sc.text : '#555',
                         border: selected.status === s ? `1px solid ${sc.text}` : '1px solid #e5e5e5',
                         fontWeight: selected.status === s ? 700 : 400
                       }}>
-                      {s}
+                      {updatingStatus && selected.status !== s ? '...' : s}
                     </button>
                   )
                 })}
