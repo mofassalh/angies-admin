@@ -66,8 +66,6 @@ export default function SettingsPage() {
       {/* Branding */}
       <div className="rounded-2xl p-6 mb-4" style={{ backgroundColor: '#fff', border: '1px solid #e5e5e5' }}>
         <h3 className="font-semibold mb-4" style={{ color: '#1A1A1A' }}>Branding</h3>
-
-        {/* Logo */}
         <div className="mb-4">
           <label className="text-sm mb-2 block" style={{ color: '#555' }}>Logo</label>
           <div className="flex items-center gap-4">
@@ -88,7 +86,6 @@ export default function SettingsPage() {
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
           </div>
         </div>
-
         <div className="space-y-3">
           <div>
             <label className="text-sm mb-1 block" style={{ color: '#555' }}>Business Name</label>
@@ -146,7 +143,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Social */}
-      <div className="rounded-2xl p-6" style={{ backgroundColor: '#fff', border: '1px solid #e5e5e5' }}>
+      <div className="rounded-2xl p-6 mb-4" style={{ backgroundColor: '#fff', border: '1px solid #e5e5e5' }}>
         <h3 className="font-semibold mb-4" style={{ color: '#1A1A1A' }}>Social Media</h3>
         <div className="space-y-3">
           <div>
@@ -165,6 +162,99 @@ export default function SettingsPage() {
               className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
               style={{ border: '1px solid #e5e5e5', color: '#1A1A1A' }} />
           </div>
+        </div>
+      </div>
+
+      {/* Promotions */}
+      <div className="rounded-2xl p-6 mb-4" style={{ backgroundColor: '#fff', border: '1px solid #e5e5e5' }}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold" style={{ color: '#1A1A1A' }}>Promotional Banner</h3>
+          <div className="flex items-center gap-2">
+            <span className="text-sm" style={{ color: '#888' }}>
+              {settings.promo_enabled === 'true' ? 'Visible' : 'Hidden'}
+            </span>
+            <button
+              onClick={() => setSettings((s: any) => ({ ...s, promo_enabled: s.promo_enabled === 'true' ? 'false' : 'true' }))}
+              className="relative w-11 h-6 rounded-full transition-colors"
+              style={{ backgroundColor: settings.promo_enabled === 'true' ? '#F5C800' : '#e5e5e5' }}>
+              <div className="absolute top-1 w-4 h-4 rounded-full bg-white transition-all"
+                style={{ left: settings.promo_enabled === 'true' ? '24px' : '4px' }} />
+            </button>
+          </div>
+        </div>
+
+        {/* Preview */}
+        {settings.promo_enabled === 'true' && (
+          <div className="rounded-xl p-4 mb-4 text-white text-sm"
+            style={{ backgroundColor: settings.primary_color || '#F5C800' }}>
+            <div className="font-bold text-base" style={{ color: '#1A1A1A' }}>
+              {settings.promo_title || 'Free Delivery on Your First Order!'}
+            </div>
+            <div className="mt-1" style={{ color: '#1A1A1A', opacity: 0.7 }}>
+              {settings.promo_subtitle || 'Sign up today and enjoy free delivery.'}
+            </div>
+            <div className="mt-2 inline-block px-3 py-1 rounded-lg text-xs font-semibold"
+              style={{ backgroundColor: '#1A1A1A', color: '#fff' }}>
+              {settings.promo_button_text || 'Order Now & Save'}
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-sm mb-1 block" style={{ color: '#555' }}>Title</label>
+            <input value={settings.promo_title || ''}
+              onChange={e => setSettings((s: any) => ({ ...s, promo_title: e.target.value }))}
+              placeholder="Free Delivery on Your First Order!"
+              className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+              style={{ border: '1px solid #e5e5e5', color: '#1A1A1A' }} />
+          </div>
+          <div>
+            <label className="text-sm mb-1 block" style={{ color: '#555' }}>Subtitle</label>
+            <input value={settings.promo_subtitle || ''}
+              onChange={e => setSettings((s: any) => ({ ...s, promo_subtitle: e.target.value }))}
+              placeholder="Sign up today and enjoy free delivery on your first order."
+              className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+              style={{ border: '1px solid #e5e5e5', color: '#1A1A1A' }} />
+          </div>
+          <div>
+            <label className="text-sm mb-1 block" style={{ color: '#555' }}>Button Text</label>
+            <input value={settings.promo_button_text || ''}
+              onChange={e => setSettings((s: any) => ({ ...s, promo_button_text: e.target.value }))}
+              placeholder="Order Now & Save"
+              className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+              style={{ border: '1px solid #e5e5e5', color: '#1A1A1A' }} />
+          </div>
+          <div>
+            <label className="text-sm mb-1 block" style={{ color: '#555' }}>Button Link</label>
+            <input value={settings.promo_button_link || ''}
+              onChange={e => setSettings((s: any) => ({ ...s, promo_button_link: e.target.value }))}
+              placeholder="/menu"
+              className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+              style={{ border: '1px solid #e5e5e5', color: '#1A1A1A' }} />
+          </div>
+          <div>
+            <label className="text-sm mb-1 block" style={{ color: '#555' }}>Emoji / Icon (right side)</label>
+            <input value={settings.promo_emoji || ''}
+              onChange={e => setSettings((s: any) => ({ ...s, promo_emoji: e.target.value }))}
+              placeholder="🎁"
+              className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+              style={{ border: '1px solid #e5e5e5', color: '#1A1A1A' }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Opening Hours */}
+      <div className="rounded-2xl p-6" style={{ backgroundColor: '#fff', border: '1px solid #e5e5e5' }}>
+        <h3 className="font-semibold mb-4" style={{ color: '#1A1A1A' }}>Opening Hours</h3>
+        <div>
+          <label className="text-sm mb-1 block" style={{ color: '#555' }}>Hours (shown in footer)</label>
+          <textarea value={settings.opening_hours || ''}
+            onChange={e => setSettings((s: any) => ({ ...s, opening_hours: e.target.value }))}
+            placeholder={"Mon – Thu: 11am – 10pm\nFri – Sat: 11am – 11pm\nSunday: 12pm – 10pm"}
+            rows={4}
+            className="w-full px-4 py-2.5 rounded-xl text-sm outline-none resize-none"
+            style={{ border: '1px solid #e5e5e5', color: '#1A1A1A' }} />
         </div>
       </div>
     </div>
