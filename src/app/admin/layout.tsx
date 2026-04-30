@@ -5,13 +5,13 @@ import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import {
   LayoutDashboard, UtensilsCrossed, ShoppingBag, MapPin,
-  Users, Settings, LogOut, Menu
+  Users, Settings, LogOut, Menu, Monitor, ChevronDown, Bell
 } from 'lucide-react'
 
 const navItems = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard' },
+  { href: '/admin/orders', label: 'Realtime Orders', icon: Monitor, permission: 'orders' },
   { href: '/admin/menu', label: 'Menu', icon: UtensilsCrossed, permission: 'menu' },
-  { href: '/admin/orders', label: 'Orders', icon: ShoppingBag, permission: 'orders' },
   { href: '/admin/locations', label: 'Locations', icon: MapPin, permission: 'locations' },
   { href: '/admin/staff', label: 'Staff', icon: Users, permission: 'staff' },
   { href: '/admin/settings', label: 'Settings', icon: Settings, permission: 'settings' },
@@ -22,6 +22,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [userEmail, setUserEmail] = useState('')
   const [staff, setStaff] = useState<any>({ role: 'owner', permissions: {} })
   const [loadingAuth, setLoadingAuth] = useState(true)
+  const [locations, setLocations] = useState<any[]>([])
+  const [selectedLocation, setSelectedLocation] = useState<string>('All Locations')
+  const [locationDropdown, setLocationDropdown] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
@@ -33,32 +36,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       setUserEmail(user.email || '')
 
       try {
-        const { data: staffData } = await supabase
-          .from('staff')
-          .select('*')
-          .eq('auth_id', user.id)
-          .maybeSingle()
-
+        const { data: staffData } = await supabase.from('staff').select('*').eq('auth_id', user.id).maybeSingle()
         if (staffData) {
           setStaff(staffData)
         } else {
-          const { data: ownerData } = await supabase
-            .from('staff')
-            .select('*')
-            .eq('email', user.email)
-            .maybeSingle()
-
+          const { data: ownerData } = await supabase.from('staff').select('*').eq('email', user.email).maybeSingle()
           if (ownerData) {
             await supabase.from('staff').update({ auth_id: user.id }).eq('id', ownerData.id)
             setStaff({ ...ownerData, auth_id: user.id })
           } else {
-            // Not in staff table — treat as owner
             setStaff({ role: 'owner', permissions: {}, name: user.email })
           }
         }
       } catch {
         setStaff({ role: 'owner', permissions: {}, name: user.email })
       }
+
+      const { data: locsData } = await supabase.from('locations').select('*').eq('is_active', true).order('name')
+      if (locsData) setLocations(locsData)
 
       setLoadingAuth(false)
     }
@@ -81,68 +76,135 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (loadingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#f5f5f5' }}>
-        <div className="text-center">
-          <div className="w-8 h-8 rounded-full border-2 animate-spin mx-auto mb-3"
-            style={{ borderColor: '#F5C800', borderTopColor: 'transparent' }} />
-          <p className="text-sm" style={{ color: '#888' }}>Loading...</p>
-        </div>
+        <div className="w-8 h-8 rounded-full border-2 animate-spin mx-auto"
+          style={{ borderColor: '#F5C800', borderTopColor: 'transparent' }} />
       </div>
     )
   }
 
+  const initials = (staff?.name || userEmail || '?').slice(0, 2).toUpperCase()
+
   return (
     <div className="min-h-screen flex" style={{ backgroundColor: '#f5f5f5' }}>
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-200
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:static lg:flex lg:flex-col`}
+
+      {/* Sidebar */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-200 flex flex-col
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:static`}
         style={{ backgroundColor: '#1A1A1A' }}>
-        <div className="p-6" style={{ borderBottom: '1px solid #2a2a2a' }}>
-          <h1 className="text-2xl font-bold" style={{ color: '#F5C800' }}>Angie's</h1>
-          <p className="text-xs mt-1" style={{ color: '#666' }}>
-            {staff?.role === 'owner' ? 'Owner' : staff?.role === 'kitchen' ? 'Kitchen' : 'Staff'} Panel
-          </p>
+
+        {/* Logo */}
+        <div className="p-6 flex items-center gap-3" style={{ borderBottom: '1px solid #2a2a2a' }}>
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0"
+            style={{ backgroundColor: '#F5C800', color: '#1A1A1A' }}>A</div>
+          <div>
+            <div className="font-bold text-white text-sm">Angie's</div>
+            <div className="text-xs" style={{ color: '#666' }}>
+              {staff?.role === 'owner' ? 'Owner Panel' : staff?.role === 'kitchen' ? 'Kitchen' : 'Staff Panel'}
+            </div>
+          </div>
         </div>
-        <nav className="flex-1 p-4 space-y-1">
-          {visibleNav.map(({ href, label, icon: Icon }) => (
-            <Link key={href} href={href}
-              onClick={() => setSidebarOpen(false)}
-              className="flex items-center gap-3 px-4 py-3 rounded-xl transition text-sm font-medium"
-              style={{
-                backgroundColor: pathname === href ? '#F5C800' : 'transparent',
-                color: pathname === href ? '#1A1A1A' : '#aaa',
-              }}>
-              <Icon size={18} />
-              {label}
-            </Link>
-          ))}
+
+        {/* Nav */}
+        <nav className="flex-1 p-4 space-y-0.5">
+          {visibleNav.map(({ href, label, icon: Icon }) => {
+            const isActive = href === '/admin' ? pathname === '/admin' : pathname.startsWith(href)
+            return (
+              <Link key={href} href={href}
+                onClick={() => setSidebarOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium"
+                style={{
+                  backgroundColor: isActive ? '#F5C800' : 'transparent',
+                  color: isActive ? '#1A1A1A' : '#888',
+                }}>
+                <Icon size={17} />
+                {label}
+              </Link>
+            )
+          })}
         </nav>
+
+        {/* Bottom */}
         <div className="p-4" style={{ borderTop: '1px solid #2a2a2a' }}>
-          <p className="text-xs mb-1 truncate" style={{ color: '#555' }}>{userEmail}</p>
-          <p className="text-xs mb-3 capitalize" style={{ color: '#444' }}>{staff?.name || ''}</p>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+              style={{ backgroundColor: '#F5C800', color: '#1A1A1A' }}>{initials}</div>
+            <div className="min-w-0">
+              <div className="text-xs font-medium text-white truncate">{staff?.name || 'Admin'}</div>
+              <div className="text-xs truncate" style={{ color: '#555' }}>{userEmail}</div>
+            </div>
+          </div>
           <button onClick={handleLogout}
-            className="flex items-center gap-2 text-sm w-full transition"
-            style={{ color: '#aaa' }}
-            onMouseOver={e => (e.currentTarget.style.color = '#F5C800')}
-            onMouseOut={e => (e.currentTarget.style.color = '#aaa')}>
-            <LogOut size={16} /> Logout
+            className="flex items-center gap-2 text-sm w-full px-3 py-2 rounded-xl transition-all"
+            style={{ color: '#888' }}
+            onMouseOver={e => { e.currentTarget.style.background = '#2a2a2a'; e.currentTarget.style.color = '#fff' }}
+            onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#888' }}>
+            <LogOut size={15} /> Logout
           </button>
         </div>
       </aside>
 
       {sidebarOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden"
-          style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+        <div className="fixed inset-0 z-40 lg:hidden" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
           onClick={() => setSidebarOpen(false)} />
       )}
 
+      {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="px-4 py-3 flex items-center lg:hidden"
-          style={{ backgroundColor: '#1A1A1A', borderBottom: '1px solid #2a2a2a' }}>
-          <button onClick={() => setSidebarOpen(true)} style={{ color: '#aaa' }}>
+
+        {/* Topbar */}
+        <header className="px-6 py-3 flex items-center justify-between bg-white"
+          style={{ borderBottom: '1px solid #e5e5e5', height: 60 }}>
+          <button onClick={() => setSidebarOpen(true)} className="lg:hidden" style={{ color: '#888' }}>
             <Menu size={22} />
           </button>
-          <h1 className="font-bold ml-3" style={{ color: '#F5C800' }}>Angie's Admin</h1>
+
+          <div className="hidden lg:block" />
+
+          <div className="flex items-center gap-3">
+            {/* Location switcher */}
+            <div className="relative">
+              <button
+                onClick={() => setLocationDropdown(!locationDropdown)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all"
+                style={{ border: '1px solid #e5e5e5', color: '#1A1A1A', background: 'white' }}>
+                <MapPin size={14} style={{ color: '#F5C800' }} />
+                {selectedLocation}
+                <ChevronDown size={14} style={{ color: '#aaa' }} />
+              </button>
+              {locationDropdown && (
+                <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-lg z-50 min-w-48 py-1"
+                  style={{ border: '1px solid #e5e5e5' }}>
+                  <button
+                    onClick={() => { setSelectedLocation('All Locations'); setLocationDropdown(false) }}
+                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors"
+                    style={{ color: selectedLocation === 'All Locations' ? '#F5C800' : '#1A1A1A', fontWeight: selectedLocation === 'All Locations' ? 600 : 400 }}>
+                    All Locations
+                  </button>
+                  {locations.map(loc => (
+                    <button key={loc.id}
+                      onClick={() => { setSelectedLocation(loc.name); setLocationDropdown(false) }}
+                      className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors"
+                      style={{ color: selectedLocation === loc.name ? '#F5C800' : '#1A1A1A', fontWeight: selectedLocation === loc.name ? 600 : 400 }}>
+                      {loc.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Bell */}
+            <button className="w-9 h-9 rounded-xl flex items-center justify-center transition-all"
+              style={{ border: '1px solid #e5e5e5', color: '#888' }}>
+              <Bell size={16} />
+            </button>
+
+            {/* Avatar */}
+            <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 cursor-pointer"
+              style={{ backgroundColor: '#F5C800', color: '#1A1A1A' }}>{initials}</div>
+          </div>
         </header>
-        <main className="flex-1 p-6">
+
+        <main className="flex-1 p-6 overflow-auto">
           {children}
         </main>
       </div>
