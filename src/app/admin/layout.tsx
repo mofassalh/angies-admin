@@ -5,7 +5,8 @@ import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import {
   LayoutDashboard, UtensilsCrossed, ShoppingBag, MapPin,
-  Users, Settings, LogOut, Menu, Monitor, ChevronDown, Bell
+  Users, Settings, LogOut, Menu, Monitor, ChevronDown, Bell,
+  BarChart2, Megaphone, Gift, Truck, Clock, Store, KeyRound
 } from 'lucide-react'
 
 const navItems = [
@@ -14,6 +15,12 @@ const navItems = [
   { href: '/admin/menu', label: 'Menu', icon: UtensilsCrossed, permission: 'menu' },
   { href: '/admin/locations', label: 'Locations', icon: MapPin, permission: 'locations' },
   { href: '/admin/staff', label: 'Staff', icon: Users, permission: 'staff' },
+  { href: '/admin/reports', label: 'Reports', icon: BarChart2, permission: 'dashboard' },
+  { href: '/admin/marketing', label: 'Marketing', icon: Megaphone, permission: 'dashboard' },
+  { href: '/admin/loyalty', label: 'Loyalty', icon: Gift, permission: 'dashboard' },
+  { href: '/admin/delivery', label: 'Delivery', icon: Truck, permission: 'dashboard' },
+  { href: '/admin/pickup', label: 'Pickup', icon: Clock, permission: 'dashboard' },
+  { href: '/admin/restaurant', label: 'Restaurant', icon: Store, permission: 'dashboard' },
   { href: '/admin/settings', label: 'Settings', icon: Settings, permission: 'settings' },
 ]
 
