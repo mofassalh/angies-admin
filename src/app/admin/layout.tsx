@@ -295,13 +295,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               {locationDropdown && (
                 <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-lg z-50 min-w-48 py-1"
                   style={{ border: '1px solid #e5e5e5' }}>
-                  <button onClick={() => { setSelectedLocation('All Locations'); setLocationDropdown(false) }}
+                  <button onClick={() => { setSelectedLocation('All Locations'); localStorage.setItem('selectedLocation', 'All Locations'); window.dispatchEvent(new Event('storage')); setLocationDropdown(false) }}
                     className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors"
                     style={{ color: selectedLocation === 'All Locations' ? '#D4A900' : '#1A1A1A', fontWeight: selectedLocation === 'All Locations' ? 600 : 400 }}>
                     All Locations
                   </button>
                   {locations.map(loc => (
-                    <button key={loc.id} onClick={() => { setSelectedLocation(loc.name); setLocationDropdown(false) }}
+                    <button key={loc.id} onClick={() => { setSelectedLocation(loc.name); localStorage.setItem('selectedLocation', loc.name); window.dispatchEvent(new Event('storage')); setLocationDropdown(false) }}
                       className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors"
                       style={{ color: selectedLocation === loc.name ? '#D4A900' : '#1A1A1A', fontWeight: selectedLocation === loc.name ? 600 : 400 }}>
                       {loc.name}

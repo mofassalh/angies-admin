@@ -8,8 +8,7 @@ export default function AdminDashboard() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(true)
   const [allOrders, setAllOrders] = useState<any[]>([])
-  const [locations, setLocations] = useState<any[]>([])
-  const [filterLocations, setFilterLocations] = useState<string[]>([])
+  const [selectedLocation, setSelectedLocation] = useState<string>('All Locations')
   const [menuItems, setMenuItems] = useState(0)
   const [staff, setStaff] = useState(0)
   const [dateFilter, setDateFilter] = useState('today')
@@ -18,20 +17,28 @@ export default function AdminDashboard() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email || ''))
     fetchAll()
+    // Read selected location from localStorage
+    const loc = localStorage.getItem('selectedLocation') || 'All Locations'
+    setSelectedLocation(loc)
+    // Listen for location changes
+    const handleStorage = () => {
+      const newLoc = localStorage.getItem('selectedLocation') || 'All Locations'
+      setSelectedLocation(newLoc)
+    }
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
   }, [])
 
   const fetchAll = async () => {
     setLoading(true)
-    const [ordersRes, menuRes, staffRes, locationsRes] = await Promise.all([
+    const [ordersRes, menuRes, staffRes] = await Promise.all([
       supabase.from('orders').select('*').order('created_at', { ascending: false }),
       supabase.from('menu_items').select('id', { count: 'exact', head: true }).eq('available', true),
       supabase.from('staff').select('id', { count: 'exact', head: true }),
-      supabase.from('locations').select('*').eq('is_active', true),
     ])
     setAllOrders(ordersRes.data || [])
     setMenuItems(menuRes.count || 0)
     setStaff(staffRes.count || 0)
-    setLocations(locationsRes.data || [])
     setLoading(false)
   }
 
@@ -39,9 +46,9 @@ export default function AdminDashboard() {
     setFilterLocations(prev => prev.includes(name) ? prev.filter(l => l !== name) : [...prev, name])
   }
 
-  const filteredByLocation = filterLocations.length === 0
+  const filteredByLocation = selectedLocation === 'All Locations'
     ? allOrders
-    : allOrders.filter(o => filterLocations.includes(o.location))
+    : allOrders.filter(o => o.location === selectedLocation)
 
   const now = new Date()
   const today = new Date(); today.setHours(0,0,0,0)
@@ -139,31 +146,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Location filter */}
-      {locations.length > 0 && (
-        <div className="mb-6 p-4 rounded-2xl bg-white" style={{ border: '1px solid #e5e5e5' }}>
-          <div className="flex items-center gap-2 mb-3">
-            <MapPin size={14} style={{ color: '#888' }} />
-            <span className="text-xs font-medium" style={{ color: '#888' }}>Filter by Location</span>
-            {filterLocations.length > 0 && (
-              <button onClick={() => setFilterLocations([])} className="text-xs underline ml-1" style={{ color: '#F5C800' }}>Clear</button>
-            )}
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            {locations.map(loc => (
-              <button key={loc.id} onClick={() => toggleLocation(loc.name)}
-                className="px-3 py-1.5 rounded-full text-xs font-medium transition-all"
-                style={{
-                  backgroundColor: filterLocations.includes(loc.name) ? '#F5C800' : '#f5f5f5',
-                  color: filterLocations.includes(loc.name) ? '#1A1A1A' : '#666',
-                  border: `1px solid ${filterLocations.includes(loc.name) ? '#F5C800' : '#e5e5e5'}`,
-                }}>
-                {filterLocations.includes(loc.name) ? '✓ ' : ''}{loc.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -346,22 +329,13 @@ export default function AdminDashboard() {
         </div>
 
         <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid #e5e5e5' }}>
-          <h3 className="font-semibold text-sm mb-4" style={{ color: '#1A1A1A' }}>Active Locations</h3>
-          <div className="space-y-3">
-            {locations.map(loc => (
-              <div key={loc.id} onClick={() => toggleLocation(loc.name)}
-                className="flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-all"
-                style={{
-                  backgroundColor: filterLocations.includes(loc.name) ? '#FFF8DC' : '#f9f9f9',
-                  border: `1px solid ${filterLocations.includes(loc.name) ? '#F5C800' : 'transparent'}`,
-                }}>
-                <MapPin size={15} className="mt-0.5 shrink-0" style={{ color: '#F5C800' }} />
-                <div>
-                  <div className="text-sm font-semibold" style={{ color: '#1A1A1A' }}>{loc.name}</div>
-                  {loc.address && <div className="text-xs mt-0.5" style={{ color: '#888' }}>{loc.address}</div>}
-                </div>
-              </div>
-            ))}
+          <h3 className="font-semibold text-sm mb-4" style={{ color: '#1A1A1A' }}>Filtering By</h3>
+          <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: '#FFF9E0', border: '1px solid #E8C84A' }}>
+            <MapPin size={15} style={{ color: '#F5C800' }} />
+            <div>
+              <div className="text-sm font-semibold" style={{ color: '#1A1A1A' }}>{selectedLocation}</div>
+              <div className="text-xs mt-0.5" style={{ color: '#888' }}>Change from top bar</div>
+            </div>
           </div>
         </div>
       </div>
