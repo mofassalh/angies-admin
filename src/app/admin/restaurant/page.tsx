@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Save, Clock, MapPin, Phone, Mail, Globe, Toggle } from 'lucide-react'
+import { Save, Clock, MapPin } from 'lucide-react'
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
