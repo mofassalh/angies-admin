@@ -22,9 +22,6 @@ const navItems: NavItem[] = [
     label: 'Menu', icon: UtensilsCrossed, permission: 'menu',
     children: [
       { label: 'Menu Items', href: '/admin/menu' },
-      { label: 'Modifiers', href: '/admin/menu/modifiers' },
-      { label: 'Ingredients', href: '/admin/menu/ingredients' },
-      { label: 'Menu Editor', href: '/admin/menu/editor', badge: 'Beta' },
       { label: 'Price Settings', href: '/admin/menu/pricing' },
       { label: 'Courses', href: '/admin/menu/courses' },
       { label: 'Populars', href: '/admin/menu/populars' },
@@ -54,12 +51,7 @@ const navItems: NavItem[] = [
       { label: 'Customers', href: '/admin/loyalty/customers' },
     ]
   },
-  {
-    label: 'Loyalty V2', icon: Gift, permission: 'dashboard',
-    children: [
-      { label: 'Overview', href: '/admin/loyalty-v2', badge: 'Beta' },
-    ]
-  },
+
   {
     label: 'Delivery', icon: Truck, permission: 'dashboard',
     children: [
