@@ -43,7 +43,7 @@ export default function MarketingPage() {
   const openAdd = () => { setEditing(null); setForm(empty); setShowModal(true) }
   const openEdit = (p: Promo) => {
     setEditing(p)
-    setForm({ code: p.code, type: p.type, value: p.value, min_order: p.min_order, max_uses: p.max_uses, expires_at: p.expires_at?.slice(0,10) || '', is_active: p.is_active, description: p.description || '' })
+    setForm({ code: p.code, type: p.type as 'percent' | 'fixed', value: p.value, min_order: p.min_order, max_uses: p.max_uses, expires_at: p.expires_at?.slice(0,10) || '', is_active: p.is_active, description: p.description || '' })
     setShowModal(true)
   }
 
