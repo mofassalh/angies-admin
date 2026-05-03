@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
-import { ShoppingBag, UtensilsCrossed, Users, TrendingUp, RefreshCw, MapPin } from 'lucide-react'
+import { ShoppingBag, Users, TrendingUp, RefreshCw } from 'lucide-react'
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 export default function AdminDashboard() {
@@ -106,16 +106,7 @@ export default function AdminDashboard() {
     count: filteredOrders.filter(o => o.status === s).length,
   })).filter(d => d.count > 0)
 
-  const STATUS_COLORS: any = {
-    pending: { bg: '#fff8e1', text: '#b8860b' },
-    confirmed: { bg: '#e3f2fd', text: '#1565c0' },
-    preparing: { bg: '#fff3e0', text: '#e65100' },
-    ready: { bg: '#e8f5e9', text: '#2e7d32' },
-    completed: { bg: '#f3e5f5', text: '#6a1b9a' },
-    cancelled: { bg: '#ffebee', text: '#c62828' },
-  }
 
-  const recentOrders = filteredOrders.slice(0, 8)
 
   const fmt = (n: number) => `$${n.toFixed(2)}`
   const fmtK = (n: number) => n >= 1000 ? `$${(n/1000).toFixed(1)}k` : `$${n.toFixed(0)}`
@@ -292,53 +283,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Recent orders + locations */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 bg-white rounded-2xl p-5" style={{ border: '1px solid #e5e5e5' }}>
-          <h3 className="font-semibold text-sm mb-4" style={{ color: '#1A1A1A' }}>Recent Orders</h3>
-          {recentOrders.length === 0 ? (
-            <p className="text-sm" style={{ color: '#bbb' }}>No orders yet</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
-                  {['#', 'Customer', 'Location', 'Total', 'Status'].map(h => (
-                    <th key={h} className="text-left py-2 text-xs font-medium" style={{ color: '#888' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {recentOrders.map((order, i) => {
-                  const sc = STATUS_COLORS[order.status] || STATUS_COLORS.pending
-                  return (
-                    <tr key={order.id} style={{ borderBottom: i < recentOrders.length-1 ? '1px solid #f9f9f9' : 'none' }}>
-                      <td className="py-3 font-mono text-xs" style={{ color: '#aaa' }}>{order.order_number || '#'+order.id.slice(0,5)}</td>
-                      <td className="py-3 text-sm" style={{ color: '#333' }}>{order.customer_name || '—'}</td>
-                      <td className="py-3 text-xs" style={{ color: '#888' }}>{order.location || '—'}</td>
-                      <td className="py-3 font-semibold text-sm" style={{ color: '#1A1A1A' }}>${parseFloat(order.total).toFixed(2)}</td>
-                      <td className="py-3">
-                        <span className="px-2 py-1 rounded-full text-xs font-medium capitalize"
-                          style={{ backgroundColor: sc.bg, color: sc.text }}>{order.status}</span>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
 
-        <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid #e5e5e5' }}>
-          <h3 className="font-semibold text-sm mb-4" style={{ color: '#1A1A1A' }}>Filtering By</h3>
-          <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: '#FFF9E0', border: '1px solid #E8C84A' }}>
-            <MapPin size={15} style={{ color: '#F5C800' }} />
-            <div>
-              <div className="text-sm font-semibold" style={{ color: '#1A1A1A' }}>{selectedLocation}</div>
-              <div className="text-xs mt-0.5" style={{ color: '#888' }}>Change from top bar</div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }
