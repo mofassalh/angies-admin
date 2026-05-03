@@ -39,7 +39,10 @@ export default function RestaurantPage() {
 
   const loadLocationSettings = (loc: any) => {
     setStoreOpen(loc.is_open ?? true)
-    setHours(loc.opening_hours ? JSON.parse(loc.opening_hours) : DEFAULT_HOURS)
+    try {
+      const h = loc.opening_hours ? (typeof loc.opening_hours === 'string' ? JSON.parse(loc.opening_hours) : loc.opening_hours) : DEFAULT_HOURS
+      setHours(Object.keys(h).length > 0 ? h : DEFAULT_HOURS)
+    } catch { setHours(DEFAULT_HOURS) }
     setMinOrder(loc.min_order || '0')
     setDeliveryFee(loc.delivery_fee || '0')
     setDeliveryTime(loc.delivery_time || '30')
@@ -51,7 +54,7 @@ export default function RestaurantPage() {
     setSaving(true)
     await supabase.from('locations').update({
       is_open: storeOpen,
-      opening_hours: JSON.stringify(hours),
+      opening_hours: JSON.stringify(hours) as any,
       min_order: minOrder,
       delivery_fee: deliveryFee,
       delivery_time: deliveryTime,
