@@ -41,11 +41,6 @@ export default function AdminDashboard() {
     setStaff(staffRes.count || 0)
     setLoading(false)
   }
-  const filteredByLocation = selectedLocation === 'All Locations'
-    ? allOrders
-    : allOrders.filter(o => o.location === selectedLocation)
-
-  const now = new Date()
   const today = new Date(); today.setHours(0,0,0,0)
   const week = new Date(); week.setDate(week.getDate() - 7)
   const month = new Date(); month.setDate(1); month.setHours(0,0,0,0)
