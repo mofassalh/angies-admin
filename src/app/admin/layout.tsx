@@ -23,7 +23,6 @@ const navItems: NavItem[] = [
     children: [
       { label: 'Menu Items', href: '/admin/menu' },
       { label: 'Price Settings', href: '/admin/menu/pricing' },
-      { label: 'Courses', href: '/admin/menu/courses' },
       { label: 'Populars', href: '/admin/menu/populars' },
       { label: 'Specials', href: '/admin/menu/specials' },
     ]
