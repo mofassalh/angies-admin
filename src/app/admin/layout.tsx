@@ -185,9 +185,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 className="flex items-center gap-3 mx-2 px-3 py-2.5 rounded-xl transition-all text-sm font-medium mb-0.5"
                 style={{
                   backgroundColor: active ? '#FFF9E0' : 'transparent',
-                  color: active ? '#1A1A1A' : '#666',
+                  color: active ? '#1A1A1A' : '#333',
                 }}>
-                <Icon size={16} style={{ color: active ? '#D4A900' : '#aaa', flexShrink: 0 }} />
+                <Icon size={16} style={{ color: active ? '#D4A900' : '#666', flexShrink: 0 }} />
                 <span>{item.label}</span>
                 {active && <div className="absolute left-0 w-0.5 h-6 rounded-r" style={{ background: '#F5C800' }} />}
               </Link>
@@ -202,9 +202,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 style={{
                   width: 'calc(100% - 16px)',
                   backgroundColor: active && !expanded ? '#FFF9E0' : 'transparent',
-                  color: active ? '#1A1A1A' : '#666',
+                  color: active ? '#1A1A1A' : '#333',
                 }}>
-                <Icon size={16} style={{ color: active ? '#D4A900' : '#aaa', flexShrink: 0 }} />
+                <Icon size={16} style={{ color: active ? '#D4A900' : '#666', flexShrink: 0 }} />
                 <span className="flex-1 text-left">{item.label}</span>
                 {expanded
                   ? <ChevronDown size={14} style={{ color: '#ccc', flexShrink: 0 }} />
@@ -221,7 +221,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         className="flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all mb-0.5"
                         style={{
                           backgroundColor: childActive ? '#FFF9E0' : 'transparent',
-                          color: childActive ? '#D4A900' : '#888',
+                          color: childActive ? '#D4A900' : '#444',
                           fontWeight: childActive ? 500 : 400,
                         }}>
                         <span>{child.label}</span>
