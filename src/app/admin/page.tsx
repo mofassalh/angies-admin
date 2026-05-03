@@ -41,11 +41,6 @@ export default function AdminDashboard() {
     setStaff(staffRes.count || 0)
     setLoading(false)
   }
-
-  const toggleLocation = (name: string) => {
-    setFilterLocations(prev => prev.includes(name) ? prev.filter(l => l !== name) : [...prev, name])
-  }
-
   const filteredByLocation = selectedLocation === 'All Locations'
     ? allOrders
     : allOrders.filter(o => o.location === selectedLocation)
