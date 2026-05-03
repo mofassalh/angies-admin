@@ -16,8 +16,8 @@ type Promo = {
   description: string
 }
 
-const empty = {
-  code: '', type: 'percent' as const, value: 10,
+const empty: { code: string, type: 'percent' | 'fixed', value: number, min_order: number, max_uses: number, expires_at: string, is_active: boolean, description: string } = {
+  code: '', type: 'percent', value: 10,
   min_order: 0, max_uses: 100, expires_at: '',
   is_active: true, description: ''
 }
@@ -43,7 +43,7 @@ export default function MarketingPage() {
   const openAdd = () => { setEditing(null); setForm(empty); setShowModal(true) }
   const openEdit = (p: Promo) => {
     setEditing(p)
-    setForm({ code: p.code, type: p.type as 'percent' | 'fixed', value: p.value, min_order: p.min_order, max_uses: p.max_uses, expires_at: p.expires_at?.slice(0,10) || '', is_active: p.is_active, description: p.description || '' })
+    setForm({ code: p.code, type: p.type, value: p.value, min_order: p.min_order, max_uses: p.max_uses, expires_at: p.expires_at?.slice(0,10) || '', is_active: p.is_active, description: p.description || '' })
     setShowModal(true)
   }
 
