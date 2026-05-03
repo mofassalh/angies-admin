@@ -4,6 +4,15 @@ import { createClient } from '@/lib/supabase'
 import { ShoppingBag, Users, TrendingUp, RefreshCw } from 'lucide-react'
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
+const STATUS_COLORS: any = {
+  pending:   { bg: '#fff8e1', text: '#b8860b' },
+  confirmed: { bg: '#e3f2fd', text: '#1565c0' },
+  preparing: { bg: '#fff3e0', text: '#e65100' },
+  ready:     { bg: '#e8f5e9', text: '#2e7d32' },
+  completed: { bg: '#f3e5f5', text: '#6a1b9a' },
+  cancelled: { bg: '#ffebee', text: '#c62828' },
+}
+
 export default function AdminDashboard() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(true)
@@ -12,15 +21,15 @@ export default function AdminDashboard() {
   const [menuItems, setMenuItems] = useState(0)
   const [staff, setStaff] = useState(0)
   const [dateFilter, setDateFilter] = useState('today')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
   const supabase = createClient()
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email || ''))
     fetchAll()
-    // Read selected location from localStorage
     const loc = localStorage.getItem('selectedLocation') || 'All Locations'
     setSelectedLocation(loc)
-    // Listen for location changes
     const handleStorage = () => {
       const newLoc = localStorage.getItem('selectedLocation') || 'All Locations'
       setSelectedLocation(newLoc)
@@ -41,15 +50,25 @@ export default function AdminDashboard() {
     setStaff(staffRes.count || 0)
     setLoading(false)
   }
+
   const today = new Date(); today.setHours(0,0,0,0)
   const week = new Date(); week.setDate(week.getDate() - 7)
   const month = new Date(); month.setDate(1); month.setHours(0,0,0,0)
+
+  const filteredByLocation = selectedLocation === 'All Locations'
+    ? allOrders
+    : allOrders.filter(o => o.location === selectedLocation)
 
   const filteredOrders = filteredByLocation.filter(o => {
     const d = new Date(o.created_at)
     if (dateFilter === 'today') return d >= today
     if (dateFilter === '7days') return d >= week
     if (dateFilter === 'month') return d >= month
+    if (dateFilter === 'custom' && fromDate && toDate) {
+      const from = new Date(fromDate); from.setHours(0,0,0,0)
+      const to = new Date(toDate); to.setHours(23,59,59,999)
+      return d >= from && d <= to
+    }
     return true
   })
 
@@ -58,7 +77,6 @@ export default function AdminDashboard() {
   const totalRevenue = filteredByLocation.reduce((s, o) => s + (parseFloat(o.total) || 0), 0)
   const avgOrder = filteredOrders.length > 0 ? filteredOrders.reduce((s,o) => s+(parseFloat(o.total)||0), 0) / filteredOrders.length : 0
 
-  // Hourly revenue chart data
   const hourlyData = Array.from({ length: 24 }, (_, h) => {
     const orders = filteredOrders.filter(o => new Date(o.created_at).getHours() === h)
     return {
@@ -68,7 +86,6 @@ export default function AdminDashboard() {
     }
   }).filter(d => d.revenue > 0 || d.orders > 0)
 
-  // Last 7 days bar chart
   const last7Days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(); d.setDate(d.getDate() - (6 - i)); d.setHours(0,0,0,0)
     const next = new Date(d); next.setDate(next.getDate() + 1)
@@ -82,7 +99,6 @@ export default function AdminDashboard() {
     }
   })
 
-  // Pickup vs Delivery pie
   const pickupCount = filteredOrders.filter(o => o.order_type === 'pickup').length
   const deliveryCount = filteredOrders.filter(o => o.order_type === 'delivery').length
   const pieData = [
@@ -90,13 +106,10 @@ export default function AdminDashboard() {
     { name: 'Delivery', value: deliveryCount, color: '#4a9eff' },
   ].filter(d => d.value > 0)
 
-  // Status breakdown
   const statusBreakdown = ['pending','confirmed','preparing','ready','completed','cancelled'].map(s => ({
     status: s,
     count: filteredOrders.filter(o => o.status === s).length,
   })).filter(d => d.count > 0)
-
-
 
   const fmt = (n: number) => `$${n.toFixed(2)}`
   const fmtK = (n: number) => n >= 1000 ? `$${(n/1000).toFixed(1)}k` : `$${n.toFixed(0)}`
@@ -104,12 +117,12 @@ export default function AdminDashboard() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold" style={{ color: '#1A1A1A' }}>Dashboard</h2>
           <p className="mt-1 text-sm" style={{ color: '#888' }}>Welcome back, {email}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
           <select value={dateFilter} onChange={e => setDateFilter(e.target.value)}
             className="text-sm px-3 py-2 rounded-xl outline-none"
             style={{ border: '1px solid #e5e5e5', color: '#1A1A1A', background: 'white' }}>
@@ -117,7 +130,19 @@ export default function AdminDashboard() {
             <option value="7days">Last 7 Days</option>
             <option value="month">This Month</option>
             <option value="all">All Time</option>
+            <option value="custom">Custom Range</option>
           </select>
+          {dateFilter === 'custom' && (
+            <>
+              <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
+                className="text-sm px-3 py-2 rounded-xl outline-none"
+                style={{ border: '1px solid #e5e5e5', color: '#1A1A1A', background: 'white' }} />
+              <span className="text-xs" style={{ color: '#888' }}>to</span>
+              <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
+                className="text-sm px-3 py-2 rounded-xl outline-none"
+                style={{ border: '1px solid #e5e5e5', color: '#1A1A1A', background: 'white' }} />
+            </>
+          )}
           <button onClick={fetchAll} disabled={loading}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium"
             style={{ backgroundColor: '#f5f5f5', color: '#555' }}>
@@ -126,8 +151,6 @@ export default function AdminDashboard() {
           </button>
         </div>
       </div>
-
-
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -150,8 +173,6 @@ export default function AdminDashboard() {
 
       {/* Charts row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-
-        {/* Revenue by day */}
         <div className="lg:col-span-2 bg-white rounded-2xl p-5" style={{ border: '1px solid #e5e5e5' }}>
           <div className="mb-4">
             <div className="font-semibold text-sm" style={{ color: '#1A1A1A' }}>Revenue — Last 7 Days</div>
@@ -169,7 +190,6 @@ export default function AdminDashboard() {
           </ResponsiveContainer>
         </div>
 
-        {/* Pickup vs Delivery */}
         <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid #e5e5e5' }}>
           <div className="mb-4">
             <div className="font-semibold text-sm" style={{ color: '#1A1A1A' }}>Order Type</div>
@@ -213,9 +233,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Charts row 2 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-
-        {/* Hourly revenue */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 bg-white rounded-2xl p-5" style={{ border: '1px solid #e5e5e5' }}>
           <div className="mb-4">
             <div className="font-semibold text-sm" style={{ color: '#1A1A1A' }}>Revenue by Hour</div>
@@ -243,7 +261,6 @@ export default function AdminDashboard() {
           )}
         </div>
 
-        {/* Order status breakdown */}
         <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid #e5e5e5' }}>
           <div className="mb-4">
             <div className="font-semibold text-sm" style={{ color: '#1A1A1A' }}>Order Status</div>
@@ -272,8 +289,6 @@ export default function AdminDashboard() {
           )}
         </div>
       </div>
-
-
     </div>
   )
 }
