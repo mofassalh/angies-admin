@@ -1,4 +1,5 @@
 'use client'
+import config from '../../../restaurant.config'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, usePathname } from 'next/navigation'
@@ -154,9 +155,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Logo */}
       <div className="p-5 flex items-center gap-3" style={{ borderBottom: '1px solid #f0f0f0' }}>
         <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0"
-          style={{ backgroundColor: '#F5C800', color: '#1A1A1A' }}>A</div>
+          style={{ backgroundColor: config.primaryColor, color: '#1A1A1A' }}>{config.name[0]}</div>
         <div>
-          <div className="font-bold text-sm" style={{ color: '#1A1A1A' }}>Angie's</div>
+          <div className="font-bold text-sm" style={{ color: '#1A1A1A' }}>{config.name}</div>
           <div className="text-xs" style={{ color: '#aaa' }}>
             {staff?.role === 'owner' ? 'Owner Panel' : staff?.role === 'kitchen' ? 'Kitchen' : 'Staff Panel'}
           </div>
