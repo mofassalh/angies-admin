@@ -6,7 +6,7 @@ import Link from 'next/link'
 import {
   LayoutDashboard, Monitor, UtensilsCrossed, BarChart2, Megaphone,
   Gift, Truck, Clock, Store, Settings, LogOut, Menu, ChevronDown,
-  ChevronRight, Bell, MapPin, Users, Key
+  ChevronRight, Bell, MapPin, Users, Key, ChefHat
 } from 'lucide-react'
 
 type NavChild = { label: string, href: string, badge?: string }
@@ -18,6 +18,7 @@ type NavItem = {
 const navItems: NavItem[] = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard' },
   { href: '/admin/orders', label: 'Realtime Orders', icon: Monitor, permission: 'orders' },
+  { href: '/admin/kitchen', label: 'Kitchen Display', icon: ChefHat, permission: 'orders' },
   {
     label: 'Menu', icon: UtensilsCrossed, permission: 'menu',
     children: [
