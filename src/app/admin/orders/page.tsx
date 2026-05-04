@@ -37,6 +37,7 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Order | null>(null)
   const [filterStatus, setFilterStatus] = useState('all')
+  const [filterType, setFilterType] = useState('all')
   const [filterLocations, setFilterLocations] = useState<string[]>([])
   const [locations, setLocations] = useState<string[]>([])
   const [newOrderIds, setNewOrderIds] = useState<Set<string>>(new Set())
@@ -98,7 +99,8 @@ export default function OrdersPage() {
   const filtered = orders.filter(o => {
     const statusMatch = filterStatus === 'all' || o.status === filterStatus
     const locationMatch = filterLocations.length === 0 || filterLocations.includes(o.location)
-    return statusMatch && locationMatch
+    const typeMatch = filterType === 'all' || o.order_type === filterType
+    return statusMatch && locationMatch && typeMatch
   })
 
   const formatDate = (d: string) => new Date(d).toLocaleString('en-AU', {
@@ -189,6 +191,25 @@ export default function OrdersPage() {
               border: '1px solid #e5e5e5',
             }}>
             {s === 'all' ? `All (${orders.length})` : `${s} (${orders.filter(o => o.status === s).length})`}
+          </button>
+        ))}
+      </div>
+
+      {/* Type filter */}
+      <div className="flex gap-2 mb-4">
+        {[
+          { key: 'all', label: '🍽️ All Types', count: orders.length },
+          { key: 'pickup', label: '🏃 Pickup', count: orders.filter(o => o.order_type === 'pickup').length },
+          { key: 'delivery', label: '🛵 Delivery', count: orders.filter(o => o.order_type === 'delivery').length },
+        ].map(t => (
+          <button key={t.key} onClick={() => setFilterType(t.key)}
+            className="px-4 py-1.5 rounded-full text-sm font-medium transition-all"
+            style={{
+              background: filterType === t.key ? '#F5C800' : 'white',
+              color: filterType === t.key ? '#1A1A1A' : '#666',
+              border: '1px solid #e5e5e5',
+            }}>
+            {t.label} ({t.count})
           </button>
         ))}
       </div>
