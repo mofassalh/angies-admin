@@ -63,6 +63,39 @@ export default function OrdersPage() {
     setLoading(false)
   }
 
+  // Request notification permission
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      Notification.requestPermission()
+    }
+  }, [])
+
+  const playSound = () => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.frequency.setValueAtTime(880, ctx.currentTime)
+      osc.frequency.setValueAtTime(660, ctx.currentTime + 0.1)
+      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.2)
+      gain.gain.setValueAtTime(0.3, ctx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4)
+      osc.start(ctx.currentTime)
+      osc.stop(ctx.currentTime + 0.4)
+    } catch (e) {}
+  }
+
+  const sendNotification = (name: string, orderNumber: string) => {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      new Notification('🔔 New Order!', {
+        body: `${orderNumber} — ${name}`,
+        icon: '/favicon.ico',
+      })
+    }
+  }
+
   useEffect(() => { fetchOrders() }, [dateFilter])
 
   useEffect(() => {
@@ -75,6 +108,8 @@ export default function OrdersPage() {
           setLocations(prev => newOrder.location && !prev.includes(newOrder.location) ? [...prev, newOrder.location] : prev)
           setNewOrderIds(prev => new Set([...prev, newOrder.id]))
           setNewOrderAlert(newOrder.customer_name || 'New order')
+          playSound()
+          sendNotification(newOrder.customer_name || 'Customer', newOrder.order_number)
           setTimeout(() => { setNewOrderIds(prev => { const s = new Set(prev); s.delete(newOrder.id); return s }) }, 5000)
           setTimeout(() => setNewOrderAlert(null), 4000)
         } else if (payload.eventType === 'UPDATE') {
