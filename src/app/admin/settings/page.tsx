@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
+import { RESTAURANT_ID } from '@/lib/restaurant'
 import { Save, Upload } from 'lucide-react'
 
 export default function SettingsPage() {
@@ -9,11 +10,13 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [uploadingHero, setUploadingHero] = useState<number | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const heroRefs = [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)]
   const supabase = createClient()
 
   const fetchSettings = async () => {
-    const { data } = await supabase.from('settings').select('*')
+    const { data } = await supabase.from('settings').select('*').eq('restaurant_id', RESTAURANT_ID)
     const map: any = {}
     data?.forEach(row => { map[row.key] = row.value })
     setSettings(map)
@@ -25,7 +28,10 @@ export default function SettingsPage() {
   const handleSave = async () => {
     setSaving(true)
     for (const [key, value] of Object.entries(settings)) {
-      await supabase.from('settings').upsert({ key, value }, { onConflict: 'key' })
+      await supabase.from('settings').upsert(
+        { key, value, restaurant_id: RESTAURANT_ID },
+        { onConflict: 'key,restaurant_id' }
+      )
     }
     setSaving(false)
     setSaved(true)
@@ -37,13 +43,28 @@ export default function SettingsPage() {
     if (!file) return
     setUploading(true)
     const ext = file.name.split('.').pop()
-    const fileName = `logo.${ext}`
+    const fileName = `logo_${RESTAURANT_ID}.${ext}`
     const { error } = await supabase.storage.from('menu-images').upload(fileName, file, { upsert: true })
     if (!error) {
       const { data: urlData } = supabase.storage.from('menu-images').getPublicUrl(fileName)
       setSettings((s: any) => ({ ...s, logo_url: urlData.publicUrl }))
     }
     setUploading(false)
+  }
+
+  const handleHeroUpload = async (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingHero(index)
+    const ext = file.name.split('.').pop()
+    const fileName = `hero_${RESTAURANT_ID}_${index}.${ext}`
+    const { error } = await supabase.storage.from('menu-images').upload(fileName, file, { upsert: true })
+    if (!error) {
+      const { data: urlData } = supabase.storage.from('menu-images').getPublicUrl(fileName)
+      const key = `hero_image${index}`
+      setSettings((s: any) => ({ ...s, [key]: urlData.publicUrl }))
+    }
+    setUploadingHero(null)
   }
 
   if (loading) return <p className="text-sm" style={{ color: '#aaa' }}>Loading...</p>
@@ -119,6 +140,112 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      {/* Hero Images */}
+      <div className="rounded-2xl p-6 mb-4" style={{ backgroundColor: '#fff', border: '1px solid #e5e5e5' }}>
+        <h3 className="font-semibold mb-4" style={{ color: '#1A1A1A' }}>Hero Images</h3>
+        <p className="text-xs mb-4" style={{ color: '#888' }}>4 images shown on homepage. First image is the main large image.</p>
+        <div className="grid grid-cols-2 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i}>
+              <label className="text-sm mb-2 block" style={{ color: '#555' }}>Image {i} {i === 1 ? '(Main)' : ''}</label>
+              <div className="relative w-full h-32 rounded-xl overflow-hidden"
+                style={{ backgroundColor: '#f5f5f5', border: '1px solid #e5e5e5' }}>
+                {settings[`hero_image${i}`] ? (
+                  <img src={settings[`hero_image${i}`]} alt={`hero ${i}`} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <span className="text-3xl">🖼️</span>
+                  </div>
+                )}
+              </div>
+              <button onClick={() => heroRefs[i-1].current?.click()}
+                className="mt-2 w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm"
+                style={{ border: '1px solid #e5e5e5', color: '#555' }}>
+                <Upload size={14} />
+                {uploadingHero === i ? 'Uploading...' : 'Upload'}
+              </button>
+              <input ref={heroRefs[i-1]} type="file" accept="image/*" className="hidden"
+                onChange={e => handleHeroUpload(e, i)} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Hero Text */}
+      <div className="rounded-2xl p-6 mb-4" style={{ backgroundColor: '#fff', border: '1px solid #e5e5e5' }}>
+        <h3 className="font-semibold mb-4" style={{ color: '#1A1A1A' }}>Hero Section Text</h3>
+        <div className="space-y-3">
+          <div>
+            <label className="text-sm mb-1 block" style={{ color: '#555' }}>Badge Text (top pill)</label>
+            <input value={settings.hero_badge || ''}
+              onChange={e => setSettings((s: any) => ({ ...s, hero_badge: e.target.value }))}
+              placeholder="100% Halal · 3 Melbourne locations"
+              className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+              style={{ border: '1px solid #e5e5e5', color: '#1A1A1A' }} />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-sm mb-1 block" style={{ color: '#555' }}>Title Line 1</label>
+              <input value={settings.hero_title1 || ''}
+                onChange={e => setSettings((s: any) => ({ ...s, hero_title1: e.target.value }))}
+                placeholder="Fresh &"
+                className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+                style={{ border: '1px solid #e5e5e5', color: '#1A1A1A' }} />
+            </div>
+            <div>
+              <label className="text-sm mb-1 block" style={{ color: '#555' }}>Title Line 2 (colored)</label>
+              <input value={settings.hero_title2 || ''}
+                onChange={e => setSettings((s: any) => ({ ...s, hero_title2: e.target.value }))}
+                placeholder="Flavourful"
+                className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+                style={{ border: '1px solid #e5e5e5', color: '#1A1A1A' }} />
+            </div>
+            <div>
+              <label className="text-sm mb-1 block" style={{ color: '#555' }}>Title Line 3</label>
+              <input value={settings.hero_title3 || ''}
+                onChange={e => setSettings((s: any) => ({ ...s, hero_title3: e.target.value }))}
+                placeholder="Every Time"
+                className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+                style={{ border: '1px solid #e5e5e5', color: '#1A1A1A' }} />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-sm mb-1 block" style={{ color: '#555' }}>Locations Count</label>
+              <input value={settings.location_count || ''}
+                onChange={e => setSettings((s: any) => ({ ...s, location_count: e.target.value }))}
+                placeholder="3"
+                className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+                style={{ border: '1px solid #e5e5e5', color: '#1A1A1A' }} />
+            </div>
+            <div>
+              <label className="text-sm mb-1 block" style={{ color: '#555' }}>Menu Items Count</label>
+              <input value={settings.menu_item_count || ''}
+                onChange={e => setSettings((s: any) => ({ ...s, menu_item_count: e.target.value }))}
+                placeholder="50+"
+                className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+                style={{ border: '1px solid #e5e5e5', color: '#1A1A1A' }} />
+            </div>
+            <div>
+              <label className="text-sm mb-1 block" style={{ color: '#555' }}>Rating</label>
+              <input value={settings.hero_rating || ''}
+                onChange={e => setSettings((s: any) => ({ ...s, hero_rating: e.target.value }))}
+                placeholder="4.8★"
+                className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+                style={{ border: '1px solid #e5e5e5', color: '#1A1A1A' }} />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm mb-1 block" style={{ color: '#555' }}>Popular Item Name</label>
+            <input value={settings.popular_item || ''}
+              onChange={e => setSettings((s: any) => ({ ...s, popular_item: e.target.value }))}
+              placeholder="Kebab Plate"
+              className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+              style={{ border: '1px solid #e5e5e5', color: '#1A1A1A' }} />
+          </div>
+        </div>
+      </div>
+
       {/* Contact */}
       <div className="rounded-2xl p-6 mb-4" style={{ backgroundColor: '#fff', border: '1px solid #e5e5e5' }}>
         <h3 className="font-semibold mb-4" style={{ color: '#1A1A1A' }}>Contact</h3>
@@ -135,7 +262,7 @@ export default function SettingsPage() {
             <label className="text-sm mb-1 block" style={{ color: '#555' }}>Email</label>
             <input value={settings.email || ''}
               onChange={e => setSettings((s: any) => ({ ...s, email: e.target.value }))}
-              placeholder="hello@angiesknb.com"
+              placeholder="hello@restaurant.com"
               className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
               style={{ border: '1px solid #e5e5e5', color: '#1A1A1A' }} />
           </div>
@@ -150,7 +277,7 @@ export default function SettingsPage() {
             <label className="text-sm mb-1 block" style={{ color: '#555' }}>Facebook URL</label>
             <input value={settings.facebook || ''}
               onChange={e => setSettings((s: any) => ({ ...s, facebook: e.target.value }))}
-              placeholder="https://facebook.com/angiesknb"
+              placeholder="https://facebook.com/yourpage"
               className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
               style={{ border: '1px solid #e5e5e5', color: '#1A1A1A' }} />
           </div>
@@ -158,7 +285,7 @@ export default function SettingsPage() {
             <label className="text-sm mb-1 block" style={{ color: '#555' }}>Instagram URL</label>
             <input value={settings.instagram || ''}
               onChange={e => setSettings((s: any) => ({ ...s, instagram: e.target.value }))}
-              placeholder="https://instagram.com/angiesknb"
+              placeholder="https://instagram.com/yourpage"
               className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
               style={{ border: '1px solid #e5e5e5', color: '#1A1A1A' }} />
           </div>
@@ -182,24 +309,6 @@ export default function SettingsPage() {
             </button>
           </div>
         </div>
-
-        {/* Preview */}
-        {settings.promo_enabled === 'true' && (
-          <div className="rounded-xl p-4 mb-4 text-white text-sm"
-            style={{ backgroundColor: settings.primary_color || '#F5C800' }}>
-            <div className="font-bold text-base" style={{ color: '#1A1A1A' }}>
-              {settings.promo_title || 'Free Delivery on Your First Order!'}
-            </div>
-            <div className="mt-1" style={{ color: '#1A1A1A', opacity: 0.7 }}>
-              {settings.promo_subtitle || 'Sign up today and enjoy free delivery.'}
-            </div>
-            <div className="mt-2 inline-block px-3 py-1 rounded-lg text-xs font-semibold"
-              style={{ backgroundColor: '#1A1A1A', color: '#fff' }}>
-              {settings.promo_button_text || 'Order Now & Save'}
-            </div>
-          </div>
-        )}
-
         <div className="space-y-3">
           <div>
             <label className="text-sm mb-1 block" style={{ color: '#555' }}>Title</label>
@@ -234,7 +343,7 @@ export default function SettingsPage() {
               style={{ border: '1px solid #e5e5e5', color: '#1A1A1A' }} />
           </div>
           <div>
-            <label className="text-sm mb-1 block" style={{ color: '#555' }}>Emoji / Icon (right side)</label>
+            <label className="text-sm mb-1 block" style={{ color: '#555' }}>Emoji</label>
             <input value={settings.promo_emoji || ''}
               onChange={e => setSettings((s: any) => ({ ...s, promo_emoji: e.target.value }))}
               placeholder="🎁"
