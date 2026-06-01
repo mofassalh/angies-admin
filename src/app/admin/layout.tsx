@@ -81,6 +81,7 @@ const navItems: NavItem[] = [
       { label: 'Locations', href: '/admin/locations' },
       { label: 'Staff', href: '/admin/staff' },
       { label: 'Authentication Code', href: '/admin/settings/auth-code' },
+      { label: 'Integrations', href: '/admin/integrations' },
     ]
   },
 ]
