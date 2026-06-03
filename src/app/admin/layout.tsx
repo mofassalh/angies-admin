@@ -118,6 +118,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       setLoadingAuth(false)
     }
     init()
+
+    // Session timeout — 30 minutes idle logout
+    let timeout: ReturnType<typeof setTimeout>
+    const resetTimeout = () => {
+      clearTimeout(timeout)
+      timeout = setTimeout(async () => {
+        await supabase.auth.signOut()
+        router.push("/login")
+      }, 30 * 60 * 1000)
+    }
+    const events = ["mousedown", "mousemove", "keypress", "scroll", "touchstart"]
+    events.forEach(e => window.addEventListener(e, resetTimeout))
+    resetTimeout()
+
     // Auto-expand current section
     navItems.forEach(item => {
       if (item.children?.some(c => pathname.startsWith(c.href))) {
