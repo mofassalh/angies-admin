@@ -149,7 +149,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   const toggleSection = (label: string) => {
-    setOpenSections(prev => prev.includes(label) ? prev.filter(s => s !== label) : [...prev, label])
+    setOpenSections(prev => prev.includes(label) ? [] : [label])
   }
 
   const isActive = (item: NavItem) => {
@@ -219,8 +219,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   : <ChevronRight size={14} style={{ color: '#ccc', flexShrink: 0 }} />
                 }
               </button>
-              {expanded && (
-                <div className="ml-8 mr-2 mb-1">
+              <div className="ml-8 mr-2 mb-1 overflow-hidden transition-all duration-300" style={{maxHeight: expanded ? "500px" : "0", opacity: expanded ? 1 : 0}}>
                   {item.children.map(child => {
                     const childActive = pathname === child.href || pathname.startsWith(child.href + '/')
                     return (
