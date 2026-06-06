@@ -149,7 +149,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   const toggleSection = (label: string) => {
-    setOpenSections(prev => prev.includes(label) ? prev.filter(s => s !== label) : [...prev, label])
+    setOpenSections(prev => prev.includes(label) ? [] : [label])
   }
 
   const isActive = (item: NavItem) => {
