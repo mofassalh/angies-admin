@@ -10,6 +10,11 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordSaving, setPasswordSaving] = useState(false)
+  const [passwordMsg, setPasswordMsg] = useState<{type: 'success'|'error', text: string} | null>(null)
   const [uploadingHero, setUploadingHero] = useState<number | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const heroRefs = [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)]
@@ -65,6 +70,24 @@ export default function SettingsPage() {
       setSettings((s: any) => ({ ...s, [key]: urlData.publicUrl }))
     }
     setUploadingHero(null)
+  }
+
+  const handlePasswordChange = async () => {
+    if (!newPassword || !confirmPassword) { setPasswordMsg({type:'error', text:'Please fill all fields'}); return }
+    if (newPassword !== confirmPassword) { setPasswordMsg({type:'error', text:'Passwords do not match'}); return }
+    if (newPassword.length < 6) { setPasswordMsg({type:'error', text:'Password must be at least 6 characters'}); return }
+    setPasswordSaving(true)
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    if (error) {
+      setPasswordMsg({type:'error', text: error.message})
+    } else {
+      setPasswordMsg({type:'success', text:'Password changed successfully!'})
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+    }
+    setPasswordSaving(false)
+    setTimeout(() => setPasswordMsg(null), 3000)
   }
 
   if (loading) return <p className="text-sm" style={{ color: '#aaa' }}>Loading...</p>
@@ -350,6 +373,37 @@ export default function SettingsPage() {
               className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
               style={{ border: '1px solid #e5e5e5', color: '#1A1A1A' }} />
           </div>
+        </div>
+      </div>
+
+      {/* Change Password */}
+      <div className="rounded-2xl p-6 mb-4" style={{ backgroundColor: '#fff', border: '1px solid #e5e5e5' }}>
+        <h3 className="font-semibold mb-4" style={{ color: '#1A1A1A' }}>Change Password</h3>
+        {passwordMsg && (
+          <div className="mb-4 p-3 rounded-xl text-sm" style={{ backgroundColor: passwordMsg.type === 'success' ? '#f0fdf4' : '#fef2f2', color: passwordMsg.type === 'success' ? '#16a34a' : '#dc2626', border: `1px solid ${passwordMsg.type === 'success' ? '#bbf7d0' : '#fecaca'}` }}>
+            {passwordMsg.text}
+          </div>
+        )}
+        <div className="space-y-3">
+          <div>
+            <label className="text-sm mb-1 block" style={{ color: '#555' }}>New Password</label>
+            <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+              style={{ border: '1px solid #e5e5e5', color: '#1A1A1A' }} />
+          </div>
+          <div>
+            <label className="text-sm mb-1 block" style={{ color: '#555' }}>Confirm New Password</label>
+            <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full px-4 py-2.5 rounded-xl text-sm outline-none"
+              style={{ border: '1px solid #e5e5e5', color: '#1A1A1A' }} />
+          </div>
+          <button onClick={handlePasswordChange} disabled={passwordSaving}
+            className="px-6 py-2.5 rounded-xl font-semibold text-sm"
+            style={{ backgroundColor: '#F5C800', color: '#1A1A1A' }}>
+            {passwordSaving ? 'Updating...' : 'Update Password'}
+          </button>
         </div>
       </div>
 
