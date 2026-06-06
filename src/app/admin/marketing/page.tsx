@@ -14,12 +14,13 @@ type Promo = {
   expires_at: string
   is_active: boolean
   description: string
+  max_uses_per_customer: number | null
 }
 
-const empty: { code: string, type: 'percent' | 'fixed', value: number, min_order: number, max_uses: number, expires_at: string, is_active: boolean, description: string } = {
+const empty: { code: string, type: 'percent' | 'fixed', value: number, min_order: number, max_uses: number, expires_at: string, is_active: boolean, description: string, max_uses_per_customer: number | null } = {
   code: '', type: 'percent', value: 10,
   min_order: 0, max_uses: 100, expires_at: '',
-  is_active: true, description: ''
+  is_active: true, description: '', max_uses_per_customer: null
 }
 
 export default function MarketingPage() {
@@ -43,7 +44,7 @@ export default function MarketingPage() {
   const openAdd = () => { setEditing(null); setForm(empty); setShowModal(true) }
   const openEdit = (p: Promo) => {
     setEditing(p)
-    setForm({ code: p.code, type: p.type, value: p.value, min_order: p.min_order, max_uses: p.max_uses, expires_at: p.expires_at?.slice(0,10) || '', is_active: p.is_active, description: p.description || '' })
+    setForm({ code: p.code, type: p.type, value: p.value, min_order: p.min_order, max_uses: p.max_uses, expires_at: p.expires_at?.slice(0,10) || '', is_active: p.is_active, description: p.description || '', max_uses_per_customer: (p as any).max_uses_per_customer ?? null })
     setShowModal(true)
   }
 
@@ -254,6 +255,13 @@ export default function MarketingPage() {
                 <div>
                   <label className="text-xs font-medium block mb-1" style={{ color: '#888' }}>Max Uses</label>
                   <input type="number" value={form.max_uses} onChange={e => setForm(f => ({ ...f, max_uses: parseInt(e.target.value) }))}
+                    className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
+                    style={{ border: '1px solid #e5e5e5', color: '#1A1A1A' }} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium block mb-1" style={{ color: '#888' }}>Max Uses Per Customer</label>
+                  <input type="number" value={form.max_uses_per_customer ?? ''} onChange={e => setForm(f => ({ ...f, max_uses_per_customer: e.target.value ? parseInt(e.target.value) : null }))}
+                    placeholder="Leave empty for unlimited"
                     className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
                     style={{ border: '1px solid #e5e5e5', color: '#1A1A1A' }} />
                 </div>
