@@ -41,7 +41,12 @@ export default function MenuPage() {
     setLoading(false)
   }
 
-  useEffect(() => { fetchItems() }, [])
+  useEffect(() => {
+    fetchItems()
+    supabase.from('settings').select('value').eq('key', 'customization_templates').eq('restaurant_id', RESTAURANT_ID).single().then(({ data }) => {
+      if (data?.value) { try { setTemplates(JSON.parse(data.value)) } catch {} }
+    })
+  }, [])
 
   const allCategories = [...new Set(items.map(i => i.category).filter(Boolean))]
 
