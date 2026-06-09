@@ -60,13 +60,30 @@ export default function MenuPage() {
     setShowModal(true)
   }
 
+  const compressImage = (file: File, maxWidth = 1200, quality = 0.8): Promise<Blob> => {
+    return new Promise((resolve) => {
+      const img = new Image()
+      const url = URL.createObjectURL(file)
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        let w = img.width, h = img.height
+        if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth }
+        canvas.width = w; canvas.height = h
+        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
+        URL.revokeObjectURL(url)
+        canvas.toBlob(blob => resolve(blob!), 'image/webp', quality)
+      }
+      img.src = url
+    })
+  }
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     setUploading(true)
-    const ext = file.name.split('.').pop()
-    const fileName = `${Date.now()}.${ext}`
-    const { error } = await supabase.storage.from('menu-images').upload(fileName, file)
+    const compressed = await compressImage(file)
+    const fileName = `${Date.now()}.webp`
+    const { error } = await supabase.storage.from('menu-images').upload(fileName, compressed, { contentType: 'image/webp' })
     if (!error) {
       const { data: urlData } = supabase.storage.from('menu-images').getPublicUrl(fileName)
       setForm((f: any) => ({ ...f, image_url: urlData.publicUrl }))
