@@ -30,6 +30,8 @@ export default function MenuPage() {
   const [uploading, setUploading] = useState(false)
   const [customCat, setCustomCat] = useState(false)
   const [showCustomizations, setShowCustomizations] = useState(false)
+  const [templates, setTemplates] = useState<any[]>([])
+  const [showTemplateDropdown, setShowTemplateDropdown] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
 
@@ -247,7 +249,7 @@ export default function MenuPage() {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center"
           style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="w-full max-w-lg rounded-2xl p-6 mx-4 max-h-[90vh] overflow-y-auto"
+          <div className="w-full max-w-2xl rounded-2xl p-6 mx-4 max-h-[90vh] overflow-y-auto"
             style={{ backgroundColor: '#fff' }}>
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-bold" style={{ color: '#1A1A1A' }}>
@@ -325,12 +327,39 @@ export default function MenuPage() {
 
             {/* Customizations */}
             <div className="mt-5">
-              <button onClick={() => setShowCustomizations(!showCustomizations)}
-                className="flex items-center justify-between w-full px-4 py-3 rounded-xl text-sm font-semibold"
-                style={{ backgroundColor: '#f9f9f9', color: '#1A1A1A' }}>
-                <span>Customizations {form.customizations?.length > 0 ? `(${form.customizations.length} sections)` : ''}</span>
-                {showCustomizations ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setShowCustomizations(!showCustomizations)}
+                  className="flex-1 flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold"
+                  style={{ backgroundColor: '#f9f9f9', color: '#1A1A1A' }}>
+                  <span>Customizations {form.customizations?.length > 0 ? `(${form.customizations.length} sections)` : ''}</span>
+                  {showCustomizations ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+                {templates.length > 0 && (
+                  <div className="relative">
+                    <button onClick={() => setShowTemplateDropdown(!showTemplateDropdown)}
+                      className="px-3 py-3 rounded-xl text-sm font-semibold whitespace-nowrap"
+                      style={{ backgroundColor: '#FFF9E0', color: '#D4A900', border: '1px solid #F5C800' }}>
+                      Load Template
+                    </button>
+                    {showTemplateDropdown && (
+                      <div className="absolute right-0 top-12 z-50 bg-white rounded-xl shadow-xl min-w-48 overflow-hidden" style={{ border: '1px solid #e5e5e5' }}>
+                        {templates.map(t => (
+                          <button key={t.id} onClick={() => {
+                            setForm((f: any) => ({ ...f, customizations: [...(f.customizations || []), ...t.sections] }))
+                            setShowCustomizations(true)
+                            setShowTemplateDropdown(false)
+                          }}
+                            className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition-colors border-b last:border-b-0"
+                            style={{ borderColor: '#f5f5f5', color: '#1A1A1A' }}>
+                            <div className="font-medium">{t.name}</div>
+                            <div className="text-xs text-gray-400 mt-0.5">{t.sections.length} sections</div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {showCustomizations && (
                 <div className="mt-3 space-y-4">

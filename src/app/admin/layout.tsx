@@ -27,6 +27,7 @@ const navItems: NavItem[] = [
       { label: 'Price Settings', href: '/admin/menu/pricing' },
       { label: 'Populars', href: '/admin/menu/populars' },
       { label: 'Specials', href: '/admin/menu/specials' },
+      { label: 'Customization Templates', href: '/admin/menu/customization-templates' },
     ]
   },
   {
