@@ -424,6 +424,23 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      {/* Delivery */}
+      <div className="rounded-2xl p-6 mb-4" style={{ backgroundColor: '#fff', border: '1px solid #e5e5e5' }}>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold" style={{ color: '#1A1A1A' }}>Delivery</h3>
+            <p className="text-sm mt-1" style={{ color: '#888' }}>Enable or disable delivery ordering for customers</p>
+          </div>
+          <button
+            onClick={() => setSettings((s: any) => ({ ...s, delivery_enabled: s.delivery_enabled === 'true' ? 'false' : 'true' }))}
+            className="relative w-11 h-6 rounded-full transition-colors"
+            style={{ backgroundColor: settings.delivery_enabled === 'true' ? '#F5C800' : '#e5e5e5' }}>
+            <div className="absolute top-1 w-4 h-4 rounded-full bg-white transition-all"
+              style={{ left: settings.delivery_enabled === 'true' ? '24px' : '4px' }} />
+          </button>
+        </div>
+      </div>
+
       {/* Opening Hours */}
       <div className="rounded-2xl p-6" style={{ backgroundColor: '#fff', border: '1px solid #e5e5e5' }}>
         <h3 className="font-semibold mb-4" style={{ color: '#1A1A1A' }}>Opening Hours</h3>
