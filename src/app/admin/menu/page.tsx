@@ -345,10 +345,10 @@ export default function MenuPage() {
                     <button onClick={() => setShowTemplateDropdown(!showTemplateDropdown)}
                       className="px-3 py-3 rounded-xl text-sm font-semibold whitespace-nowrap"
                       style={{ backgroundColor: '#FFF9E0', color: '#D4A900', border: '1px solid #F5C800' }}>
-                      Load Template
+                      Quick Add
                     </button>
                     {showTemplateDropdown && (
-                      <div className="absolute right-0 top-12 z-50 bg-white rounded-xl shadow-xl min-w-48 overflow-hidden" style={{ border: '1px solid #e5e5e5' }}>
+                      <div className="absolute right-0 bottom-12 z-50 bg-white rounded-xl shadow-xl min-w-48 overflow-hidden" style={{ border: '1px solid #e5e5e5' }}>
                         {templates.map(t => (
                           <button key={t.id} onClick={() => {
                             setForm((f: any) => ({ ...f, customizations: [...(f.customizations || []), ...t.sections] }))
