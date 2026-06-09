@@ -340,31 +340,7 @@ export default function MenuPage() {
                   <span>Customizations {form.customizations?.length > 0 ? `(${form.customizations.length} sections)` : ''}</span>
                   {showCustomizations ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                 </button>
-                {templates.length > 0 && (
-                  <div className="relative">
-                    <button onClick={() => setShowTemplateDropdown(!showTemplateDropdown)}
-                      className="px-3 py-3 rounded-xl text-sm font-semibold whitespace-nowrap"
-                      style={{ backgroundColor: '#FFF9E0', color: '#D4A900', border: '1px solid #F5C800' }}>
-                      Quick Add
-                    </button>
-                    {showTemplateDropdown && (
-                      <div className="absolute right-0 bottom-12 z-50 bg-white rounded-xl shadow-xl min-w-48 overflow-hidden" style={{ border: '1px solid #e5e5e5' }}>
-                        {templates.map(t => (
-                          <button key={t.id} onClick={() => {
-                            setForm((f: any) => ({ ...f, customizations: [...(f.customizations || []), ...t.sections] }))
-                            setShowCustomizations(true)
-                            setShowTemplateDropdown(false)
-                          }}
-                            className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition-colors border-b last:border-b-0"
-                            style={{ borderColor: '#f5f5f5', color: '#1A1A1A' }}>
-                            <div className="font-medium">{t.name}</div>
-                            <div className="text-xs text-gray-400 mt-0.5">{t.sections.length} sections</div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
+
               </div>
 
               {showCustomizations && (
@@ -426,6 +402,31 @@ export default function MenuPage() {
                     </div>
                   ))}
 
+                  {templates.length > 0 && (
+                    <div className="relative mb-2">
+                      <button onClick={() => setShowTemplateDropdown(!showTemplateDropdown)}
+                        className="w-full py-2.5 rounded-xl text-sm font-semibold"
+                        style={{ backgroundColor: '#FFF9E0', color: '#D4A900', border: '1px solid #F5C800' }}>
+                        ⚡ Quick Add from Template
+                      </button>
+                      {showTemplateDropdown && (
+                        <div className="absolute left-0 right-0 bottom-12 z-50 bg-white rounded-xl shadow-xl overflow-hidden" style={{ border: '1px solid #e5e5e5' }}>
+                          {templates.map(t => (
+                            <button key={t.id} onClick={() => {
+                              setForm((f: any) => ({ ...f, customizations: [...(f.customizations || []), ...t.sections] }))
+                              setShowCustomizations(true)
+                              setShowTemplateDropdown(false)
+                            }}
+                              className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 transition-colors border-b last:border-b-0"
+                              style={{ borderColor: '#f5f5f5', color: '#1A1A1A' }}>
+                              <div className="font-medium">{t.name}</div>
+                              <div className="text-xs text-gray-400 mt-0.5">{t.sections.length} sections</div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <button onClick={addSection}
                     className="w-full py-2.5 rounded-xl text-sm font-medium"
                     style={{ border: '2px dashed #e5e5e5', color: '#888' }}>
