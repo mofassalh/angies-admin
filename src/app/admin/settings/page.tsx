@@ -57,13 +57,30 @@ export default function SettingsPage() {
     setUploading(false)
   }
 
+  const compressImage = (file: File, maxWidth = 1200, quality = 0.8): Promise<Blob> => {
+    return new Promise((resolve) => {
+      const img = new Image()
+      const url = URL.createObjectURL(file)
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        let w = img.width, h = img.height
+        if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth }
+        canvas.width = w; canvas.height = h
+        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
+        URL.revokeObjectURL(url)
+        canvas.toBlob(blob => resolve(blob!), 'image/webp', quality)
+      }
+      img.src = url
+    })
+  }
+
   const handleHeroUpload = async (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
     const file = e.target.files?.[0]
     if (!file) return
     setUploadingHero(index)
-    const ext = file.name.split('.').pop()
-    const fileName = `hero_${RESTAURANT_ID}_${index}.${ext}`
-    const { error } = await supabase.storage.from('menu-images').upload(fileName, file, { upsert: true })
+    const compressed = await compressImage(file)
+    const fileName = `hero_${RESTAURANT_ID}_${index}.webp`
+    const { error } = await supabase.storage.from('menu-images').upload(fileName, compressed, { upsert: true, contentType: 'image/webp' })
     if (!error) {
       const { data: urlData } = supabase.storage.from('menu-images').getPublicUrl(fileName)
       const key = `hero_image${index}`
