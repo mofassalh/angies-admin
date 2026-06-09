@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
+import { RESTAURANT_ID } from '@/lib/restaurant'
 import { Plus, Pencil, Trash2, X, Check, Upload, ChevronDown, ChevronUp } from 'lucide-react'
 
 type Option = { name: string; price: number }
