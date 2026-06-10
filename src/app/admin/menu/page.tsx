@@ -20,7 +20,7 @@ type MenuItem = {
 }
 
 const LOCATIONS = ['all', 'St Albans', 'Fitzroy North', 'Ascot Vale']
-const empty = { id: '', name: '', description: '', price: '', category: '', image_url: '', available: true, location: 'all', customizations: [], sort_order: '' }
+const empty = { id: '', name: '', description: '', price: '', category: '', image_url: '', available: true, location: 'all', customizations: [], sort_order: '', category_sort_order: '' }
 
 export default function MenuPage() {
   const [items, setItems] = useState<MenuItem[]>([])
@@ -136,6 +136,7 @@ export default function MenuPage() {
       price: parseFloat(form.price),
       category: form.category,
       sort_order: form.sort_order ? parseInt(String(form.sort_order)) : null,
+      category_sort_order: form.category_sort_order ? parseInt(String(form.category_sort_order)) : null,
       image_url: form.image_url,
       available: form.available,
       location: form.location,
@@ -322,6 +323,9 @@ export default function MenuPage() {
               {/* Category */}
               {!customCat ? (
                 <div className="flex gap-2">
+                  <input placeholder="Category Order (1=first)" type="number" value={form.category_sort_order || ''}
+                    onChange={e => setForm({ ...form, category_sort_order: e.target.value })}
+                    className="w-20 border rounded-xl px-3 py-3 text-sm outline-none" style={{ borderColor: '#E8E8E8' }} />
                   <select value={form.category}
                     onChange={e => setForm({ ...form, category: e.target.value })}
                     className="flex-1 px-4 py-2.5 rounded-xl text-sm outline-none"
