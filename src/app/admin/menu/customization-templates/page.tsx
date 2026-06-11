@@ -189,6 +189,15 @@ export default function CustomizationTemplatesPage() {
                         <option value="checkbox">Checkbox (pick many)</option>
                       </select>
                     </div>
+                    {section.type === 'checkbox' && (
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">Max Select</label>
+                        <input type="number" min="1" value={section.max}
+                          onChange={e => updateSection(si, 'max', parseInt(e.target.value) || 1)}
+                          className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                          style={{ border: '1px solid #e5e5e5', background: 'white' }} />
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2 mb-2">
                     {section.options.map((opt, oi) => (
