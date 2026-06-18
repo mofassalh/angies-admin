@@ -9,13 +9,11 @@ interface Location {
   name: string
   address: string
   phone: string
-  email: string
-  hours: string
   is_active: boolean
 }
 
 const empty: Omit<Location, 'id'> = {
-  name: '', address: '', phone: '', email: '', hours: '', is_active: true
+  name: '', address: '', phone: '', is_active: true
 }
 
 export default function LocationsPage() {
@@ -43,7 +41,7 @@ export default function LocationsPage() {
 
   const openEdit = (loc: Location) => {
     setEditing(loc)
-    setForm({ name: loc.name, address: loc.address, phone: loc.phone, email: loc.email, hours: loc.hours, is_active: loc.is_active })
+    setForm({ name: loc.name, address: loc.address, phone: loc.phone, is_active: loc.is_active })
     setShowModal(true)
   }
 
@@ -145,8 +143,6 @@ export default function LocationsPage() {
                 { key: 'name', label: 'Name *', placeholder: 'St Albans' },
                 { key: 'address', label: 'Address *', placeholder: '123 Main St, St Albans VIC 3021' },
                 { key: 'phone', label: 'Phone', placeholder: '03 XXXX XXXX' },
-                { key: 'email', label: 'Email', placeholder: 'stalbans@angies.com.au' },
-                { key: 'hours', label: 'Hours', placeholder: 'Mon-Sun 11am-10pm' },
               ].map(field => (
                 <div key={field.key}>
                   <label className="text-xs font-medium block mb-1" style={{ color: '#888' }}>{field.label}</label>
