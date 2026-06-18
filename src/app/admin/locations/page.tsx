@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import { RESTAURANT_ID } from '@/lib/restaurant'
 import { MapPin, Plus, Pencil, Trash2, X, Check } from 'lucide-react'
 
 interface Location {
@@ -27,7 +28,7 @@ export default function LocationsPage() {
   const supabase = createClient()
 
   const fetchLocations = async () => {
-    const { data } = await supabase.from('locations').select('*').order('name')
+    const { data } = await supabase.from('locations').select('*').eq('restaurant_id', RESTAURANT_ID).order('name')
     if (data) setLocations(data)
     setLoading(false)
   }
@@ -52,7 +53,7 @@ export default function LocationsPage() {
     if (editing) {
       await supabase.from('locations').update(form).eq('id', editing.id)
     } else {
-      await supabase.from('locations').insert(form)
+      await supabase.from('locations').insert({ ...form, restaurant_id: RESTAURANT_ID })
     }
     await fetchLocations()
     setShowModal(false)
