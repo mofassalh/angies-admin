@@ -114,8 +114,6 @@ export default function LocationsPage() {
             <div className="space-y-1.5 text-sm" style={{ color: '#aaa' }}>
               {loc.address && <div>📍 {loc.address}</div>}
               {loc.phone && <div>📞 {loc.phone}</div>}
-              {loc.email && <div>✉️ {loc.email}</div>}
-              {loc.hours && <div>🕐 {loc.hours}</div>}
             </div>
           </div>
         ))}
