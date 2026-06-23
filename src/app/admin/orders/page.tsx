@@ -129,6 +129,15 @@ export default function OrdersPage() {
     setSelected(prev => prev?.id === id ? { ...prev, status } : prev)
     setUpdatingStatus(false)
     setSelected(null)
+
+    // Send push notification (non-blocking, never affects order update)
+    try {
+      supabase.functions.invoke('send-push-notification', {
+        body: { order_id: id, status },
+      }).catch(() => {})
+    } catch (e) {
+      // Silently ignore - notification failure should never break order updates
+    }
   }
 
   const filtered = orders.filter(o => {
