@@ -44,10 +44,14 @@ export default function KitchenPage() {
   }
 
   const getElapsed = (createdAt: string) => {
-    const diff = Math.floor((currentTime.getTime() - new Date(createdAt).getTime()) / 60000)
-    if (diff < 1) return 'Just now'
-    if (diff === 1) return '1 min ago'
-    return `${diff} mins ago`
+    const diffSec = Math.floor((currentTime.getTime() - new Date(createdAt).getTime()) / 1000)
+    if (diffSec < 60) return `${diffSec}s ago`
+    const diffMin = Math.floor(diffSec / 60)
+    if (diffMin < 60) return diffMin === 1 ? '1 min ago' : `${diffMin} mins ago`
+    const diffHr = Math.floor(diffMin / 60)
+    const remMin = diffMin % 60
+    if (remMin === 0) return diffHr === 1 ? '1 hr ago' : `${diffHr} hrs ago`
+    return `${diffHr}h ${remMin}m ago`
   }
 
   const getElapsedColor = (createdAt: string) => {
