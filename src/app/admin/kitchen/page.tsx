@@ -15,6 +15,7 @@ export default function KitchenPage() {
   const [orders, setOrders] = useState<any[]>([])
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [currentTime, setCurrentTime] = useState(new Date())
+  const [selectedLocation, setSelectedLocation] = useState('All Locations')
   const supabase = createClient()
 
   const fetch = async () => {
@@ -33,8 +34,19 @@ export default function KitchenPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => fetch())
       .subscribe()
     const timer = setInterval(() => setCurrentTime(new Date()), 1000)
-    return () => { supabase.removeChannel(channel); clearInterval(timer) }
+    const saved = localStorage.getItem('selectedLocation')
+    if (saved) setSelectedLocation(saved)
+    const handleStorage = () => {
+      const loc = localStorage.getItem('selectedLocation')
+      setSelectedLocation(loc || 'All Locations')
+    }
+    window.addEventListener('storage', handleStorage)
+    return () => { supabase.removeChannel(channel); clearInterval(timer); window.removeEventListener('storage', handleStorage) }
   }, [])
+
+  const visibleOrders = selectedLocation === 'All Locations'
+    ? orders
+    : orders.filter(o => o.location === selectedLocation)
 
   const updateStatus = async (id: string, status: string) => {
     setUpdatingId(id)
@@ -63,7 +75,7 @@ export default function KitchenPage() {
 
   // Group by status
   const grouped = STATUS_ORDER.reduce((acc, s) => {
-    acc[s] = orders.filter(o => o.status === s)
+    acc[s] = visibleOrders.filter(o => o.status === s)
     return acc
   }, {} as Record<string, any[]>)
 
@@ -76,7 +88,7 @@ export default function KitchenPage() {
             style={{ background: '#F5C800', color: '#1A1A1A' }}>A</div>
           <div>
             <div className="font-bold text-white">Kitchen Display</div>
-            <div className="text-xs" style={{ color: '#888' }}>{orders.length} active orders</div>
+            <div className="text-xs" style={{ color: '#888' }}>{visibleOrders.length} active orders</div>
           </div>
         </div>
         <div className="text-right">
@@ -89,7 +101,7 @@ export default function KitchenPage() {
         </div>
       </div>
 
-      {orders.length === 0 ? (
+      {visibleOrders.length === 0 ? (
         <div className="flex items-center justify-center h-96">
           <div className="text-center">
             <div className="text-6xl mb-4">✅</div>
