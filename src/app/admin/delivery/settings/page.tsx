@@ -39,7 +39,7 @@ export default function DeliverySettingsPage() {
   const handleSave = async () => {
     setSaving(true)
     for (const [key, value] of Object.entries(settings)) {
-      await supabase.from('settings').upsert({ key, value }, { onConflict: 'key' })
+      await supabase.from('settings').upsert({ key, value, restaurant_id: 1 }, { onConflict: 'key,restaurant_id' })
     }
     setSaving(false)
     setSaved(true)
