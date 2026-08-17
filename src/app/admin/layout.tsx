@@ -84,6 +84,7 @@ const navItems: NavItem[] = [
       { label: 'Staff', href: '/admin/staff' },
       { label: 'Authentication Code', href: '/admin/settings/auth-code' },
       { label: 'Integrations', href: '/admin/integrations' },
+      { label: 'Kitchen Printers', href: '/admin/printers' },
     ]
   },
 ]
