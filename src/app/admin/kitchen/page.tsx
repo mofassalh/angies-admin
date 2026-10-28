@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { RESTAURANT_ID } from '@/lib/restaurant'
 import { getStoreStatus } from '@/lib/storeHours'
+import { toDate as utcDate } from '@/lib/adminFilters'
 
 // Simple kitchen screen: New → Cooking → Ready.
 // Tapping is optional — orders still show without any taps, and old
@@ -111,7 +112,7 @@ export default function KitchenPage() {
     setUpdatingId(null)
   }
 
-  const minsAgo = (createdAt: string) => Math.max(0, Math.floor((now.getTime() - new Date(createdAt).getTime()) / 60000))
+  const minsAgo = (createdAt: string) => Math.max(0, Math.floor((now.getTime() - utcDate(createdAt).getTime()) / 60000))
   const timeChip = (m: number) =>
     m < 10 ? { bg: '#F0FDF4', text: '#15803D' } : m < 20 ? { bg: '#FFFBEB', text: '#B45309' } : { bg: '#FEF2F2', text: '#B91C1C' }
 

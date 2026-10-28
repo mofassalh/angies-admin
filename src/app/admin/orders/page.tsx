@@ -1,6 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import { RESTAURANT_ID } from '@/lib/restaurant'
+import { useSelectedLocation, matchesLocation, rangeBounds, toDate as utcDate, RANGE_OPTIONS, RangeKey, shortLocation, TZ } from '@/lib/adminFilters'
 import { Eye, X, Bell, MapPin, Clock, ChevronDown } from 'lucide-react'
 
 type Order = {
@@ -43,18 +45,18 @@ export default function OrdersPage() {
   const [newOrderIds, setNewOrderIds] = useState<Set<string>>(new Set())
   const [newOrderAlert, setNewOrderAlert] = useState<string | null>(null)
   const [updatingStatus, setUpdatingStatus] = useState(false)
-  const [dateFilter, setDateFilter] = useState('today')
+  const [dateFilter, setDateFilter] = useState<RangeKey>('today')
+  const [fromDate, setFromDate] = useState('')
+  const [toDateStr, setToDateStr] = useState('')
+  const selectedLocation = useSelectedLocation()
   const supabase = createClient()
 
   const fetchOrders = async () => {
-    let query = supabase.from('orders').select('*').order('created_at', { ascending: false })
-    if (dateFilter === 'today') {
-      const today = new Date(); today.setHours(0,0,0,0)
-      query = query.gte('created_at', today.toISOString())
-    } else if (dateFilter === '7days') {
-      const d = new Date(); d.setDate(d.getDate() - 7)
-      query = query.gte('created_at', d.toISOString())
-    }
+    // Date range in Melbourne time (orders are stored in UTC)
+    let query = supabase.from('orders').select('*').eq('restaurant_id', RESTAURANT_ID).order('created_at', { ascending: false })
+    const { from, to } = rangeBounds(dateFilter, fromDate, toDateStr)
+    if (from) query = query.gte('created_at', from.toISOString())
+    if (to) query = query.lt('created_at', to.toISOString())
     const { data } = await query
     const allOrders = data || []
     setOrders(allOrders)
@@ -96,7 +98,7 @@ export default function OrdersPage() {
     }
   }
 
-  useEffect(() => { fetchOrders() }, [dateFilter])
+  useEffect(() => { fetchOrders() }, [dateFilter, fromDate, toDateStr])
 
   useEffect(() => {
     const channel = supabase
@@ -140,19 +142,21 @@ export default function OrdersPage() {
     }
   }
 
-  const filtered = orders.filter(o => {
+  // Top-bar location applies to everything on this page
+  const base = orders.filter(o => matchesLocation(o.location, selectedLocation))
+  const filtered = base.filter(o => {
     const statusMatch = filterStatus === 'all' || o.status === filterStatus
-    const locationMatch = filterLocations.length === 0 || filterLocations.includes(o.location)
     const typeMatch = filterType === 'all' || o.order_type === filterType
-    return statusMatch && locationMatch && typeMatch
+    return statusMatch && typeMatch
   })
 
-  const formatDate = (d: string) => new Date(d).toLocaleString('en-AU', {
-    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+  const formatDate = (d: string) => utcDate(d).toLocaleString('en-AU', {
+    timeZone: TZ, day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
   })
 
-  const totalRevenue = filtered.reduce((s, o) => s + (parseFloat(String(o.total)) || 0), 0)
-  const avgOrder = filtered.length > 0 ? totalRevenue / filtered.length : 0
+  const sales = filtered.filter(o => o.status !== 'cancelled')
+  const totalRevenue = sales.reduce((s, o) => s + (parseFloat(String(o.total)) || 0), 0)
+  const avgOrder = sales.length > 0 ? totalRevenue / sales.length : 0
 
   return (
     <div>
@@ -169,17 +173,23 @@ export default function OrdersPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold" style={{ color: '#1A1A1A' }}>Realtime Orders</h2>
-          <p className="text-sm mt-1" style={{ color: '#888' }}>{filtered.length} of {orders.length} orders</p>
+          <p className="text-sm mt-1" style={{ color: '#888' }}>{shortLocation(selectedLocation)} · {filtered.length} of {base.length} orders · Melbourne time</p>
         </div>
         <div className="flex items-center gap-3">
           {/* Date filter */}
-          <select value={dateFilter} onChange={e => setDateFilter(e.target.value)}
+          <select value={dateFilter} onChange={e => setDateFilter(e.target.value as RangeKey)}
             className="text-sm px-3 py-2 rounded-xl outline-none"
             style={{ border: '1px solid #e5e5e5', color: '#1A1A1A', background: 'white' }}>
-            <option value="today">Today</option>
-            <option value="7days">Last 7 Days</option>
-            <option value="all">All Time</option>
+            {RANGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
+          {dateFilter === 'custom' && (
+            <>
+              <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
+                className="text-sm px-3 py-2 rounded-xl outline-none" style={{ border: '1px solid #e5e5e5', color: '#1A1A1A', background: 'white' }} />
+              <input type="date" value={toDateStr} onChange={e => setToDateStr(e.target.value)}
+                className="text-sm px-3 py-2 rounded-xl outline-none" style={{ border: '1px solid #e5e5e5', color: '#1A1A1A', background: 'white' }} />
+            </>
+          )}
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: '#22c55e' }}></span>
             <span className="text-xs font-medium" style={{ color: '#22c55e' }}>Live</span>
@@ -192,7 +202,7 @@ export default function OrdersPage() {
         {[
           { label: 'Total Sales', value: `$${totalRevenue.toFixed(2)}` },
           { label: 'Average Order', value: `$${avgOrder.toFixed(2)}` },
-          { label: 'Total Orders', value: filtered.length.toString() },
+          { label: 'Total Orders', value: sales.length.toString() },
           { label: 'Pending', value: filtered.filter(o => o.status === 'pending').length.toString() },
         ].map((card, i) => (
           <div key={i} className="bg-white rounded-2xl p-4" style={{ border: '1px solid #e5e5e5' }}>
@@ -201,28 +211,6 @@ export default function OrdersPage() {
           </div>
         ))}
       </div>
-
-      {/* Location filter */}
-      {locations.length > 0 && (
-        <div className="flex items-center gap-2 mb-4 flex-wrap">
-          <MapPin size={14} style={{ color: '#888' }} />
-          <span className="text-xs font-medium" style={{ color: '#888' }}>Location:</span>
-          {locations.map(loc => (
-            <button key={loc} onClick={() => setFilterLocations(prev => prev.includes(loc) ? prev.filter(l => l !== loc) : [...prev, loc])}
-              className="px-3 py-1.5 rounded-full text-xs font-medium transition-all"
-              style={{
-                backgroundColor: filterLocations.includes(loc) ? '#F5C800' : 'white',
-                color: filterLocations.includes(loc) ? '#1A1A1A' : '#666',
-                border: `1px solid ${filterLocations.includes(loc) ? '#F5C800' : '#e5e5e5'}`,
-              }}>
-              {filterLocations.includes(loc) ? '✓ ' : ''}{loc}
-            </button>
-          ))}
-          {filterLocations.length > 0 && (
-            <button onClick={() => setFilterLocations([])} className="text-xs underline" style={{ color: '#aaa' }}>Clear</button>
-          )}
-        </div>
-      )}
 
       {/* Status tabs */}
       <div className="flex gap-2 mb-5 flex-wrap">
@@ -234,7 +222,7 @@ export default function OrdersPage() {
               color: filterStatus === s ? '#fff' : '#666',
               border: '1px solid #e5e5e5',
             }}>
-            {s === 'all' ? `All (${orders.length})` : `${s} (${orders.filter(o => o.status === s).length})`}
+            {s === 'all' ? `All (${base.length})` : `${s} (${base.filter(o => o.status === s).length})`}
           </button>
         ))}
       </div>
@@ -242,9 +230,9 @@ export default function OrdersPage() {
       {/* Type filter */}
       <div className="flex gap-2 mb-4">
         {[
-          { key: 'all', label: '🍽️ All Types', count: orders.length },
-          { key: 'pickup', label: '🏃 Pickup', count: orders.filter(o => o.order_type === 'pickup').length },
-          { key: 'delivery', label: '🛵 Delivery', count: orders.filter(o => o.order_type === 'delivery').length },
+          { key: 'all', label: '🍽️ All Types', count: base.length },
+          { key: 'pickup', label: '🏃 Pickup', count: base.filter(o => o.order_type === 'pickup').length },
+          { key: 'delivery', label: '🛵 Delivery', count: base.filter(o => o.order_type === 'delivery').length },
         ].map(t => (
           <button key={t.key} onClick={() => setFilterType(t.key)}
             className="px-4 py-1.5 rounded-full text-sm font-medium transition-all"

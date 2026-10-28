@@ -1,6 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import { RESTAURANT_ID } from '@/lib/restaurant'
+import { useSelectedLocation, inRange, matchesLocation, toDate as utcDate, melHour, melDayStart, melDayLabel, RANGE_OPTIONS, rangeLabel, RangeKey, shortLocation } from '@/lib/adminFilters'
 import { ShoppingBag, Users, TrendingUp, RefreshCw } from 'lucide-react'
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
@@ -17,10 +19,10 @@ export default function AdminDashboard() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(true)
   const [allOrders, setAllOrders] = useState<any[]>([])
-  const [selectedLocation, setSelectedLocation] = useState<string>('All Locations')
+  const selectedLocation = useSelectedLocation()
   const [menuItems, setMenuItems] = useState(0)
   const [staff, setStaff] = useState(0)
-  const [dateFilter, setDateFilter] = useState('today')
+  const [dateFilter, setDateFilter] = useState<RangeKey>('today')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const supabase = createClient()
@@ -28,20 +30,12 @@ export default function AdminDashboard() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email || ''))
     fetchAll()
-    const loc = localStorage.getItem('selectedLocation') || 'All Locations'
-    setSelectedLocation(loc)
-    const handleStorage = () => {
-      const newLoc = localStorage.getItem('selectedLocation') || 'All Locations'
-      setSelectedLocation(newLoc)
-    }
-    window.addEventListener('storage', handleStorage)
-    return () => window.removeEventListener('storage', handleStorage)
   }, [])
 
   const fetchAll = async () => {
     setLoading(true)
     const [ordersRes, menuRes, staffRes] = await Promise.all([
-      supabase.from('orders').select('*').order('created_at', { ascending: false }),
+      supabase.from('orders').select('*').eq('restaurant_id', RESTAURANT_ID).order('created_at', { ascending: false }),
       supabase.from('menu_items').select('id', { count: 'exact', head: true }).eq('available', true),
       supabase.from('staff').select('id', { count: 'exact', head: true }),
     ])
@@ -51,34 +45,17 @@ export default function AdminDashboard() {
     setLoading(false)
   }
 
-  const today = new Date(); today.setHours(0,0,0,0)
-  const week = new Date(); week.setDate(week.getDate() - 7)
-  const month = new Date(); month.setDate(1); month.setHours(0,0,0,0)
-
-  const filteredByLocation = selectedLocation === 'All Locations'
-    ? allOrders
-    : allOrders.filter(o => o.location === selectedLocation)
-
-  const filteredOrders = filteredByLocation.filter(o => {
-    const d = new Date(o.created_at)
-    if (dateFilter === 'today') return d >= today
-    if (dateFilter === '7days') return d >= week
-    if (dateFilter === 'month') return d >= month
-    if (dateFilter === 'custom' && fromDate && toDate) {
-      const from = new Date(fromDate); from.setHours(0,0,0,0)
-      const to = new Date(toDate); to.setHours(23,59,59,999)
-      return d >= from && d <= to
-    }
-    return true
-  })
-
-  const todayOrders = filteredByLocation.filter(o => new Date(o.created_at) >= today)
-  const todayRevenue = todayOrders.reduce((s, o) => s + (parseFloat(o.total) || 0), 0)
-  const totalRevenue = filteredByLocation.reduce((s, o) => s + (parseFloat(o.total) || 0), 0)
-  const avgOrder = filteredOrders.length > 0 ? filteredOrders.reduce((s,o) => s+(parseFloat(o.total)||0), 0) / filteredOrders.length : 0
+  // Everything below follows the top-bar location AND the date range (Melbourne time)
+  const filteredByLocation = allOrders.filter(o => matchesLocation(o.location, selectedLocation))
+  const filteredOrders = filteredByLocation.filter(o => inRange(o.created_at, dateFilter, fromDate, toDate))
+  const paidOrders = filteredOrders.filter(o => o.status !== 'cancelled')
+  const periodRevenue = paidOrders.reduce((s, o) => s + (parseFloat(o.total) || 0), 0)
+  const avgOrder = paidOrders.length > 0 ? periodRevenue / paidOrders.length : 0
+  const cancelledCount = filteredOrders.length - paidOrders.length
+  const periodName = dateFilter === 'custom' ? 'Selected dates' : rangeLabel(dateFilter)
 
   const hourlyData = Array.from({ length: 24 }, (_, h) => {
-    const orders = filteredOrders.filter(o => new Date(o.created_at).getHours() === h)
+    const orders = paidOrders.filter(o => melHour(utcDate(o.created_at)) === h)
     return {
       hour: h === 0 ? '12am' : h < 12 ? `${h}am` : h === 12 ? '12pm' : `${h-12}pm`,
       revenue: orders.reduce((s, o) => s + (parseFloat(o.total) || 0), 0),
@@ -87,13 +64,14 @@ export default function AdminDashboard() {
   }).filter(d => d.revenue > 0 || d.orders > 0)
 
   const last7Days = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(); d.setDate(d.getDate() - (6 - i)); d.setHours(0,0,0,0)
-    const next = new Date(d); next.setDate(next.getDate() + 1)
+    const d = melDayStart(6 - i)
+    const next = melDayStart(5 - i)
     const orders = filteredByLocation.filter(o => {
-      const od = new Date(o.created_at); return od >= d && od < next
+      if (o.status === 'cancelled') return false
+      const od = utcDate(o.created_at); return od >= d && (i === 6 || od < next)
     })
     return {
-      day: d.toLocaleDateString('en-AU', { weekday: 'short' }),
+      day: melDayLabel(d),
       revenue: orders.reduce((s,o) => s+(parseFloat(o.total)||0), 0),
       orders: orders.length,
     }
@@ -123,14 +101,10 @@ export default function AdminDashboard() {
           <p className="mt-1 text-sm" style={{ color: '#888' }}>Welcome back, {email}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <select value={dateFilter} onChange={e => setDateFilter(e.target.value)}
+          <select value={dateFilter} onChange={e => setDateFilter(e.target.value as RangeKey)}
             className="text-sm px-3 py-2 rounded-xl outline-none"
             style={{ border: '1px solid #e5e5e5', color: '#1A1A1A', background: 'white' }}>
-            <option value="today">Today</option>
-            <option value="7days">Last 7 Days</option>
-            <option value="month">This Month</option>
-            <option value="all">All Time</option>
-            <option value="custom">Custom Range</option>
+            {RANGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
           {dateFilter === 'custom' && (
             <>
@@ -155,9 +129,9 @@ export default function AdminDashboard() {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
-          { label: "Today's Revenue", value: fmt(todayRevenue), sub: `Total: ${fmt(totalRevenue)}`, icon: TrendingUp, color: '#F5C800' },
-          { label: "Today's Orders", value: todayOrders.length, sub: `Total: ${filteredByLocation.length}`, icon: ShoppingBag, color: '#4a9eff' },
-          { label: 'Avg Order Value', value: fmt(avgOrder), sub: `${filteredOrders.length} orders`, icon: TrendingUp, color: '#22c55e' },
+          { label: `Revenue · ${periodName}`, value: fmt(periodRevenue), sub: shortLocation(selectedLocation), icon: TrendingUp, color: '#F5C800' },
+          { label: `Orders · ${periodName}`, value: paidOrders.length, sub: cancelledCount > 0 ? `${cancelledCount} cancelled (not counted)` : shortLocation(selectedLocation), icon: ShoppingBag, color: '#4a9eff' },
+          { label: 'Avg Order Value', value: fmt(avgOrder), sub: `${paidOrders.length} orders`, icon: TrendingUp, color: '#22c55e' },
           { label: 'Staff Members', value: staff, sub: 'All roles', icon: Users, color: '#a855f7' },
         ].map(({ label, value, sub, icon: Icon, color }) => (
           <div key={label} className="rounded-2xl p-5 bg-white" style={{ border: '1px solid #e5e5e5' }}>

@@ -1,6 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import { RESTAURANT_ID } from '@/lib/restaurant'
+import { useSelectedLocation, matchesLocation, inRange, toDate as utcDate, RANGE_OPTIONS, RangeKey, rangeLabel, shortLocation, TZ } from '@/lib/adminFilters'
 import { ShoppingBag, Clock, DollarSign, TrendingUp } from 'lucide-react'
 
 const STATUS_COLORS: any = {
@@ -16,6 +18,8 @@ export default function PickupPage() {
   const [orders, setOrders] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [dateFilter, setDateFilter] = useState<RangeKey>('today')
+  const selectedLocation = useSelectedLocation()
   const supabase = createClient()
 
   const fetch = async () => {
@@ -23,6 +27,7 @@ export default function PickupPage() {
       .from('orders')
       .select('*')
       .eq('order_type', 'pickup')
+      .eq('restaurant_id', RESTAURANT_ID)
       .order('created_at', { ascending: false })
     setOrders(data || [])
     setLoading(false)
@@ -44,13 +49,17 @@ export default function PickupPage() {
     setUpdatingId(null)
   }
 
-  const active = orders.filter(o => !['completed', 'cancelled'].includes(o.status))
-  const completed = orders.filter(o => o.status === 'completed')
-  const todayCompleted = completed.filter(o => new Date(o.created_at) >= new Date(new Date().setHours(0,0,0,0)))
-  const totalRevenue = completed.reduce((s, o) => s + (parseFloat(o.total) || 0), 0)
+  // Active orders: always shown (for the chosen store). Stats + history: chosen date range.
+  const forStore = orders.filter(o => matchesLocation(o.location, selectedLocation))
+  const active = forStore.filter(o => !['completed', 'cancelled'].includes(o.status))
+  const inPeriod = forStore.filter(o => inRange(o.created_at, dateFilter))
+  const completed = inPeriod.filter(o => o.status === 'completed')
+  const periodOrders = inPeriod.filter(o => o.status !== 'cancelled')
+  const totalRevenue = periodOrders.reduce((s, o) => s + (parseFloat(o.total) || 0), 0)
+  const periodName = rangeLabel(dateFilter)
 
-  const formatDate = (d: string) => new Date(d).toLocaleString('en-AU', {
-    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+  const formatDate = (d: string) => utcDate(d).toLocaleString('en-AU', {
+    timeZone: TZ, day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
   })
 
   return (
@@ -58,9 +67,14 @@ export default function PickupPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold" style={{ color: '#1A1A1A' }}>Pickup</h2>
-          <p className="text-sm mt-1" style={{ color: '#888' }}>Manage pickup orders</p>
+          <p className="text-sm mt-1" style={{ color: '#888' }}>{shortLocation(selectedLocation)} · Melbourne time</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <select value={dateFilter} onChange={e => setDateFilter(e.target.value as RangeKey)}
+            className="text-sm px-3 py-2 rounded-xl outline-none"
+            style={{ border: '1px solid #e5e5e5', color: '#1A1A1A', background: 'white' }}>
+            {RANGE_OPTIONS.filter(o => o.value !== 'custom').map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
           <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: '#22c55e' }}></span>
           <span className="text-xs font-medium" style={{ color: '#22c55e' }}>Live</span>
         </div>
@@ -70,9 +84,9 @@ export default function PickupPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
           { label: 'Active Pickups', value: active.length, icon: ShoppingBag, color: '#F5C800' },
-          { label: 'Total Pickups', value: orders.length, icon: TrendingUp, color: '#4a9eff' },
-          { label: 'Completed Today', value: todayCompleted.length, icon: Clock, color: '#22c55e' },
-          { label: 'Pickup Revenue', value: `$${totalRevenue.toFixed(0)}`, icon: DollarSign, color: '#a855f7' },
+          { label: `Pickups · ${periodName}`, value: periodOrders.length, icon: TrendingUp, color: '#4a9eff' },
+          { label: `Completed · ${periodName}`, value: completed.length, icon: Clock, color: '#22c55e' },
+          { label: `Pickup revenue · ${periodName}`, value: `$${totalRevenue.toFixed(0)}`, icon: DollarSign, color: '#a855f7' },
         ].map((k, i) => (
           <div key={i} className="bg-white rounded-2xl p-5" style={{ border: '1px solid #e5e5e5' }}>
             <div className="flex items-center justify-between mb-3">
@@ -169,7 +183,7 @@ export default function PickupPage() {
       {completed.length > 0 && (
         <div>
           <div className="font-semibold text-sm mb-3" style={{ color: '#1A1A1A' }}>
-            Recent Completed ({completed.length})
+            Completed · {periodName} ({completed.length})
           </div>
           <div className="bg-white rounded-2xl overflow-hidden" style={{ border: '1px solid #e5e5e5' }}>
             <table className="w-full text-sm">

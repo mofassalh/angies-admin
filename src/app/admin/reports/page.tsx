@@ -1,34 +1,34 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import { RESTAURANT_ID } from '@/lib/restaurant'
+import { useSelectedLocation, inRange, matchesLocation, toDate as utcDate, melHour, melMidnight, melDayLabel, rangeBounds, RANGE_OPTIONS, RangeKey, shortLocation } from '@/lib/adminFilters'
 import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { Download } from 'lucide-react'
 
 export default function ReportsPage() {
   const [orders, setOrders] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [dateFilter, setDateFilter] = useState('7days')
+  const [dateFilter, setDateFilter] = useState<RangeKey>('7days')
+  const [fromDate, setFromDate] = useState('')
+  const [toDateStr, setToDateStr] = useState('')
   const [tab, setTab] = useState('sales')
+  const selectedLocation = useSelectedLocation()
   const supabase = createClient()
 
   useEffect(() => {
-    const fetch = async () => {
-      const { data } = await supabase.from('orders').select('*').order('created_at', { ascending: true })
+    const load = async () => {
+      const { data } = await supabase.from('orders').select('*').eq('restaurant_id', RESTAURANT_ID).order('created_at', { ascending: true })
       setOrders(data || [])
       setLoading(false)
     }
-    fetch()
+    load()
   }, [])
 
-  const now = new Date()
-  const filtered = orders.filter(o => {
-    const d = new Date(o.created_at)
-    if (dateFilter === 'today') { const t = new Date(); t.setHours(0,0,0,0); return d >= t }
-    if (dateFilter === '7days') { const t = new Date(); t.setDate(t.getDate()-7); return d >= t }
-    if (dateFilter === 'month') { const t = new Date(); t.setDate(1); t.setHours(0,0,0,0); return d >= t }
-    if (dateFilter === '3months') { const t = new Date(); t.setMonth(t.getMonth()-3); return d >= t }
-    return true
-  })
+  // Top-bar location + date range (Melbourne time). Cancelled orders are not counted as sales.
+  const inPeriod = orders.filter(o => matchesLocation(o.location, selectedLocation) && inRange(o.created_at, dateFilter, fromDate, toDateStr))
+  const filtered = inPeriod.filter(o => o.status !== 'cancelled')
+  const cancelledCount = inPeriod.length - filtered.length
 
   const totalRevenue = filtered.reduce((s,o) => s+(parseFloat(o.total)||0), 0)
   const avgOrder = filtered.length > 0 ? totalRevenue / filtered.length : 0
@@ -38,24 +38,36 @@ export default function ReportsPage() {
   const deliveryRevenue = deliveryOrders.reduce((s,o) => s+(parseFloat(o.total)||0), 0)
   const completedOrders = filtered.filter(o => o.status === 'completed')
 
-  // Daily revenue
-  const dailyData = Array.from({ length: dateFilter === 'today' ? 24 : dateFilter === '7days' ? 7 : dateFilter === 'month' ? 30 : 90 }, (_, i) => {
-    let d: Date, label: string
-    if (dateFilter === 'today') {
-      d = new Date(); d.setHours(i, 0, 0, 0)
-      label = i === 0 ? '12am' : i < 12 ? `${i}am` : i === 12 ? '12pm' : `${i-12}pm`
-      const next = new Date(d); next.setHours(i+1)
-      const dayOrders = filtered.filter(o => { const od = new Date(o.created_at); return od >= d && od < next })
-      return { label, revenue: dayOrders.reduce((s,o) => s+(parseFloat(o.total)||0), 0), orders: dayOrders.length }
-    } else {
-      const days = dateFilter === '7days' ? 7 : dateFilter === 'month' ? 30 : 90
-      d = new Date(); d.setDate(d.getDate() - (days - 1 - i)); d.setHours(0,0,0,0)
-      const next = new Date(d); next.setDate(next.getDate()+1)
-      label = d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
-      const dayOrders = filtered.filter(o => { const od = new Date(o.created_at); return od >= d && od < next })
-      return { label, revenue: dayOrders.reduce((s,o) => s+(parseFloat(o.total)||0), 0), orders: dayOrders.length }
+  // Revenue over time: by hour for a single day, otherwise by day
+  const singleDay = dateFilter === 'today' || dateFilter === 'yesterday' || (dateFilter === 'custom' && !!fromDate && fromDate === toDateStr)
+  const dailyData = (() => {
+    if (singleDay) {
+      return Array.from({ length: 24 }, (_, h) => {
+        const hourOrders = filtered.filter(o => melHour(utcDate(o.created_at)) === h)
+        return {
+          label: h === 0 ? '12am' : h < 12 ? `${h}am` : h === 12 ? '12pm' : `${h-12}pm`,
+          revenue: hourOrders.reduce((s,o) => s+(parseFloat(o.total)||0), 0),
+          orders: hourOrders.length,
+        }
+      })
     }
-  }).filter(d => dateFilter === 'today' ? true : true)
+    const { from, to } = rangeBounds(dateFilter, fromDate, toDateStr)
+    const start = from || (filtered.length ? utcDate(filtered[0].created_at) : new Date())
+    const end = to || new Date()
+    const days: { label: string, revenue: number, orders: number }[] = []
+    let p = start.toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' }).split('-').map(Number)
+    for (let i = 0; i < 400; i++) {
+      const dayStart = melMidnight(p[0], p[1], p[2])
+      if (dayStart >= end) break
+      const nx = new Date(Date.UTC(p[0], p[1] - 1, p[2] + 1))
+      const next = [nx.getUTCFullYear(), nx.getUTCMonth() + 1, nx.getUTCDate()]
+      const dayEnd = melMidnight(next[0], next[1], next[2])
+      const dayOrders = filtered.filter(o => { const od = utcDate(o.created_at); return od >= dayStart && od < dayEnd })
+      days.push({ label: melDayLabel(dayStart, { day: 'numeric', month: 'short' }), revenue: dayOrders.reduce((s,o) => s+(parseFloat(o.total)||0), 0), orders: dayOrders.length })
+      p = next
+    }
+    return days
+  })()
 
   // Location breakdown
   const locationData = [...new Set(filtered.map(o => o.location).filter(Boolean))].map(loc => ({
@@ -83,6 +95,20 @@ export default function ReportsPage() {
     { name: 'Delivery', value: deliveryOrders.length, color: '#4a9eff' },
   ].filter(d => d.value > 0)
 
+  // Download the orders in this view as a CSV (opens in Excel / Google Sheets)
+  const exportCsv = () => {
+    const rows = [['Order', 'Date (Melbourne)', 'Store', 'Type', 'Status', 'Customer', 'Total']]
+    inPeriod.forEach(o => rows.push([
+      o.order_number || '', utcDate(o.created_at).toLocaleString('en-AU', { timeZone: 'Australia/Melbourne' }),
+      shortLocation(o.location || ''), o.order_type || '', o.status || '', o.customer_name || '', (parseFloat(o.total) || 0).toFixed(2),
+    ]))
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    a.download = `angies-orders-${dateFilter}.csv`
+    a.click()
+  }
+
   const tabs = ['sales', 'orders', 'items', 'locations']
 
   return (
@@ -90,19 +116,24 @@ export default function ReportsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold" style={{ color: '#1A1A1A' }}>Reports</h2>
-          <p className="text-sm mt-1" style={{ color: '#888' }}>Sales analytics & insights</p>
+          <p className="text-sm mt-1" style={{ color: '#888' }}>{shortLocation(selectedLocation)} · Melbourne time{cancelledCount > 0 ? ` · ${cancelledCount} cancelled not counted` : ''}</p>
         </div>
-        <div className="flex items-center gap-3">
-          <select value={dateFilter} onChange={e => setDateFilter(e.target.value)}
+        <div className="flex items-center gap-2 flex-wrap">
+          <select value={dateFilter} onChange={e => setDateFilter(e.target.value as RangeKey)}
             className="text-sm px-3 py-2 rounded-xl outline-none"
             style={{ border: '1px solid #e5e5e5', color: '#1A1A1A', background: 'white' }}>
-            <option value="today">Today</option>
-            <option value="7days">Last 7 Days</option>
-            <option value="month">This Month</option>
-            <option value="3months">Last 3 Months</option>
-            <option value="all">All Time</option>
+            {RANGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
-          <button className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium"
+          {dateFilter === 'custom' && (
+            <>
+              <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
+                className="text-sm px-3 py-2 rounded-xl outline-none" style={{ border: '1px solid #e5e5e5', color: '#1A1A1A', background: 'white' }} />
+              <span className="text-xs" style={{ color: '#888' }}>to</span>
+              <input type="date" value={toDateStr} onChange={e => setToDateStr(e.target.value)}
+                className="text-sm px-3 py-2 rounded-xl outline-none" style={{ border: '1px solid #e5e5e5', color: '#1A1A1A', background: 'white' }} />
+            </>
+          )}
+          <button onClick={exportCsv} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium"
             style={{ border: '1px solid #e5e5e5', color: '#555', background: 'white' }}>
             <Download size={14} /> Export
           </button>
