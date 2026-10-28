@@ -7,92 +7,86 @@ import Link from 'next/link'
 import {
   LayoutDashboard, Monitor, UtensilsCrossed, BarChart2, Megaphone,
   Gift, Truck, Clock, Store, Settings, LogOut, Menu, ChevronDown,
-  ChevronRight, Bell, MapPin, Users, Key, ChefHat
+  ChevronRight, Bell, MapPin, Users, Key, ChefHat, Home
 } from 'lucide-react'
 
-type NavChild = { label: string, href: string, badge?: string }
+type NavChild = { label: string, href: string, badge?: string, permission?: string }
 type NavItem = {
   href?: string, label: string, icon: any, permission: string,
   children?: NavChild[]
 }
 
+// 6 simple sections. Every old page is still here — only the grouping changed.
 const navItems: NavItem[] = [
-  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard' },
-  { href: '/admin/orders', label: 'Realtime Orders', icon: Monitor, permission: 'orders' },
-  { href: '/admin/kitchen', label: 'Kitchen Display', icon: ChefHat, permission: 'orders' },
+  {
+    label: 'Today', icon: Home, permission: 'dashboard',
+    children: [
+      { label: 'Overview', href: '/admin', permission: 'dashboard' },
+      { label: 'Live orders', href: '/admin/orders', permission: 'orders' },
+    ]
+  },
+  { href: '/admin/kitchen', label: 'Kitchen', icon: ChefHat, permission: 'orders' },
   {
     label: 'Menu', icon: UtensilsCrossed, permission: 'menu',
     children: [
-      { label: 'Menu Items', href: '/admin/menu' },
-      { label: 'Price Settings', href: '/admin/menu/pricing' },
-      { label: 'Populars', href: '/admin/menu/populars' },
+      { label: 'Menu items', href: '/admin/menu' },
+      { label: 'Prices', href: '/admin/menu/pricing' },
+      { label: 'Popular items', href: '/admin/menu/populars' },
       { label: 'Specials', href: '/admin/menu/specials' },
-      { label: 'Customization Templates', href: '/admin/menu/customization-templates' },
-      { label: 'Category Order', href: '/admin/menu/category-order' },
+      { label: 'Options and extras', href: '/admin/menu/customization-templates' },
+      { label: 'Category order', href: '/admin/menu/category-order' },
     ]
   },
   {
     label: 'Reports', icon: BarChart2, permission: 'dashboard',
     children: [
       { label: 'Sales', href: '/admin/reports' },
-      { label: 'Delivery', href: '/admin/reports/delivery' },
-      { label: 'Pickup', href: '/admin/reports/pickup' },
+      { label: 'Pickup report', href: '/admin/reports/pickup' },
+      { label: 'Delivery report', href: '/admin/reports/delivery' },
+      { label: 'Pickup stats', href: '/admin/pickup' },
+      { label: 'Delivery stats', href: '/admin/delivery' },
     ]
   },
   {
-    label: 'Marketing', icon: Megaphone, permission: 'dashboard',
+    label: 'Customers', icon: Users, permission: 'dashboard',
     children: [
       { label: 'Coupons', href: '/admin/marketing' },
       { label: 'Campaigns', href: '/admin/marketing/campaigns' },
-    ]
-  },
-  {
-    label: 'Loyalty', icon: Gift, permission: 'dashboard',
-    children: [
-      { label: 'Points', href: '/admin/loyalty' },
+      { label: 'Loyalty points', href: '/admin/loyalty' },
       { label: 'Rewards', href: '/admin/loyalty/rewards' },
-      { label: 'Customers', href: '/admin/loyalty/customers' },
-    ]
-  },
-
-  {
-    label: 'Delivery', icon: Truck, permission: 'dashboard',
-    children: [
-      { label: 'Statistics', href: '/admin/delivery' },
-      { label: 'Settings', href: '/admin/delivery/settings' },
-      { label: 'Zones', href: '/admin/delivery/zones' },
-    ]
-  },
-  {
-    label: 'Pickup', icon: Clock, permission: 'dashboard',
-    children: [
-      { label: 'Statistics', href: '/admin/pickup' },
-      { label: 'Settings', href: '/admin/pickup/settings' },
-    ]
-  },
-  {
-    label: 'Restaurant', icon: Store, permission: 'dashboard',
-    children: [
-      { label: 'Settings', href: '/admin/restaurant' },
+      { label: 'Customer list', href: '/admin/loyalty/customers' },
     ]
   },
   {
     label: 'Settings', icon: Settings, permission: 'settings',
     children: [
-      { label: 'General', href: '/admin/settings' },
+      { label: 'Store open and hours', href: '/admin/restaurant', permission: 'dashboard' },
+      { label: 'Pickup settings', href: '/admin/pickup/settings', permission: 'dashboard' },
+      { label: 'Delivery settings', href: '/admin/delivery/settings', permission: 'dashboard' },
+      { label: 'Delivery zones', href: '/admin/delivery/zones', permission: 'dashboard' },
+      { label: 'Brand and website', href: '/admin/settings' },
       { label: 'Locations', href: '/admin/locations' },
       { label: 'Staff', href: '/admin/staff' },
-      { label: 'Authentication Code', href: '/admin/settings/auth-code' },
+      { label: 'Kitchen printers', href: '/admin/printers' },
       { label: 'Integrations', href: '/admin/integrations' },
-      { label: 'Kitchen Printers', href: '/admin/printers' },
+      { label: 'Authentication code', href: '/admin/settings/auth-code' },
     ]
   },
 ]
 
+// A link is active on its own page, or on a sub-page no other menu link owns
+const ALL_HREFS = navItems.flatMap(i => i.children ? i.children.map(c => c.href) : [i.href!])
+function matchHref(pathname: string, href: string) {
+  if (pathname === href) return true
+  if (href === '/admin') return false
+  if (!pathname.startsWith(href + '/')) return false
+  return !ALL_HREFS.some(h => h !== href && h.length > href.length && (pathname === h || pathname.startsWith(h + '/')))
+}
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [userEmail, setUserEmail] = useState('')
-  const [staff, setStaff] = useState<any>({ role: 'owner', permissions: {} })
+  const [staff, setStaff] = useState<any>(null)
   const [loadingAuth, setLoadingAuth] = useState(true)
   const [locations, setLocations] = useState<any[]>([])
   const [selectedLocation, setSelectedLocation] = useState<string>('All Locations')
@@ -107,15 +101,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
       setUserEmail(user.email || '')
+      // Only active staff may use the admin panel. Anyone else is signed out.
+      let staffData: any = null
       try {
-        const { data: staffData } = await supabase.from('staff').select('*').eq('auth_id', user.id).maybeSingle()
-        if (staffData) setStaff(staffData)
-        else {
-          const { data: ownerData } = await supabase.from('staff').select('*').eq('email', user.email).maybeSingle()
-          if (ownerData) { await supabase.from('staff').update({ auth_id: user.id }).eq('id', ownerData.id); setStaff({ ...ownerData, auth_id: user.id }) }
-          else setStaff({ role: 'owner', permissions: {}, name: user.email })
+        const { data } = await supabase.from('staff').select('*').eq('auth_id', user.id).maybeSingle()
+        staffData = data
+        if (!staffData) {
+          // First login of a staff member added by email: link their account (server-side check)
+          const { data: linked } = await supabase.rpc('link_staff_account')
+          if (linked) {
+            const { data: again } = await supabase.from('staff').select('*').eq('auth_id', user.id).maybeSingle()
+            staffData = again
+          }
         }
-      } catch { setStaff({ role: 'owner', permissions: {}, name: user.email }) }
+      } catch { staffData = null }
+      if (!staffData || staffData.active === false) {
+        await supabase.auth.signOut()
+        router.push('/login?error=no_access')
+        return
+      }
+      setStaff(staffData)
       const { data: locsData } = await supabase.from('locations').select('*').eq('is_active', true).order('name')
       if (locsData) setLocations(locsData)
       setLoadingAuth(false)
@@ -137,7 +142,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     // Auto-expand current section
     navItems.forEach(item => {
-      if (item.children?.some(c => pathname.startsWith(c.href))) {
+      if (item.children?.some(c => matchHref(pathname, c.href))) {
         setOpenSections(prev => prev.includes(item.label) ? prev : [...prev, item.label])
       }
     })
@@ -156,8 +161,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   const isActive = (item: NavItem) => {
-    if (item.href) return item.href === '/admin' ? pathname === '/admin' : pathname.startsWith(item.href)
-    return item.children?.some(c => pathname.startsWith(c.href)) || false
+    if (item.href) return matchHref(pathname, item.href)
+    return item.children?.some(c => matchHref(pathname, c.href)) || false
   }
 
   if (loadingAuth) return (
@@ -184,7 +189,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       {/* Nav */}
       <nav className="flex-1 py-3 overflow-y-auto">
-        {navItems.filter(item => canAccess(item.permission)).map((item) => {
+        {navItems.map(item => item.children
+            ? { ...item, children: item.children.filter(c => canAccess(c.permission || item.permission)) }
+            : item
+          ).filter(item => item.children ? item.children.length > 0 : canAccess(item.permission)).map((item) => {
           const Icon = item.icon
           const active = isActive(item)
           const expanded = openSections.includes(item.label)
@@ -225,7 +233,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               {expanded && (
                 <div className="ml-8 mr-2 mb-1">
                   {item.children.map(child => {
-                    const childActive = pathname === child.href || pathname.startsWith(child.href + '/')
+                    const childActive = matchHref(pathname, child.href)
                     return (
                       <Link key={child.href} href={child.href}
                         onClick={() => setSidebarOpen(false)}

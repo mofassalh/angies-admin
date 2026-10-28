@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
@@ -10,6 +10,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const supabase = createClient()
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('error') === 'no_access') {
+      setError('This account does not have admin access. Ask the owner to add you as staff.')
+    }
+  }, [])
 
   const handleLogin = async () => {
     setLoading(true)

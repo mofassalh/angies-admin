@@ -1,195 +1,231 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import { RESTAURANT_ID } from '@/lib/restaurant'
+import { getStoreStatus } from '@/lib/storeHours'
 
-const STATUS_ORDER = ['pending', 'confirmed', 'preparing', 'ready']
+// Simple kitchen screen: New → Cooking → Ready.
+// Tapping is optional — orders still show without any taps, and old
+// orders drop off the screen after a few hours.
 
-const STATUS_CONFIG: any = {
-  pending:   { label: 'New Order', bg: '#fff8e1', border: '#F5C800', text: '#8A6800', next: 'confirmed', nextLabel: 'Confirm' },
-  confirmed: { label: 'Confirmed', bg: '#e3f2fd', border: '#4a9eff', text: '#1565c0', next: 'preparing', nextLabel: 'Start Preparing' },
-  preparing: { label: 'Preparing', bg: '#fff3e0', border: '#ff9800', text: '#e65100', next: 'ready', nextLabel: 'Mark Ready' },
-  ready:     { label: 'Ready', bg: '#e8f5e9', border: '#22c55e', text: '#15803d', next: 'completed', nextLabel: 'Completed' },
+const ACTIVE = ['pending', 'confirmed', 'preparing', 'ready']
+const STALE_HOURS = 3
+
+const COLUMNS = [
+  { key: 'new', label: 'New', statuses: ['pending', 'confirmed'], next: 'preparing', button: 'Start cooking', accent: '#F5C800', btnBg: '#F5C800', btnText: '#1A1A1A', chipBg: '#FFF8DB', chipText: '#8A6800' },
+  { key: 'cooking', label: 'Cooking', statuses: ['preparing'], next: 'ready', button: 'Ready', accent: '#3B82F6', btnBg: '#3B82F6', btnText: '#FFFFFF', chipBg: '#EFF6FF', chipText: '#1D4ED8' },
+  { key: 'ready', label: 'Ready', statuses: ['ready'], next: 'completed', button: 'Picked up', accent: '#22C55E', btnBg: '#16A34A', btnText: '#FFFFFF', chipBg: '#F0FDF4', chipText: '#15803D' },
+]
+
+function beep() {
+  try {
+    const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext
+    const ctx = new Ctx()
+    const play = (freq: number, start: number) => {
+      const o = ctx.createOscillator()
+      const g = ctx.createGain()
+      o.frequency.value = freq
+      o.connect(g)
+      g.connect(ctx.destination)
+      g.gain.setValueAtTime(0.25, ctx.currentTime + start)
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + 0.35)
+      o.start(ctx.currentTime + start)
+      o.stop(ctx.currentTime + start + 0.4)
+    }
+    play(880, 0)
+    play(1175, 0.4)
+    play(880, 0.8)
+  } catch {}
 }
 
 export default function KitchenPage() {
   const [orders, setOrders] = useState<any[]>([])
+  const [locations, setLocations] = useState<any[]>([])
   const [updatingId, setUpdatingId] = useState<string | null>(null)
-  const [currentTime, setCurrentTime] = useState(new Date())
+  const [now, setNow] = useState(new Date())
   const [selectedLocation, setSelectedLocation] = useState('All Locations')
+  const [soundOn, setSoundOn] = useState(false)
+  const seenIds = useRef<Set<string> | null>(null)
+  const soundRef = useRef(false)
   const supabase = createClient()
 
-  const fetch = async () => {
+  const load = async () => {
+    const since = new Date(Date.now() - STALE_HOURS * 3600 * 1000).toISOString()
     const { data } = await supabase
       .from('orders')
       .select('*')
-      .in('status', STATUS_ORDER)
+      .eq('restaurant_id', RESTAURANT_ID)
+      .in('status', ACTIVE)
+      .gte('created_at', since)
       .order('created_at', { ascending: true })
-    setOrders(data || [])
+    const list = data || []
+    // Sound for orders we haven't seen before
+    if (seenIds.current) {
+      const fresh = list.some(o => !seenIds.current!.has(o.id) && (o.status === 'pending' || o.status === 'confirmed'))
+      if (fresh && soundRef.current) beep()
+    }
+    seenIds.current = new Set(list.map(o => o.id))
+    setOrders(list)
   }
 
   useEffect(() => {
-    fetch()
+    load()
+    supabase.from('locations').select('id, name, is_open, opening_hours').eq('restaurant_id', RESTAURANT_ID).eq('is_active', true)
+      .then(({ data }) => setLocations(data || []))
     const channel = supabase
       .channel('kitchen-display')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => fetch())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => load())
       .subscribe()
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000)
-    const saved = localStorage.getItem('selectedLocation')
-    if (saved) setSelectedLocation(saved)
-    const handleStorage = () => {
-      const loc = localStorage.getItem('selectedLocation')
-      setSelectedLocation(loc || 'All Locations')
+    const poll = setInterval(load, 30000) // backup in case realtime drops
+    const timer = setInterval(() => setNow(new Date()), 15000)
+    try {
+      const saved = localStorage.getItem('selectedLocation')
+      if (saved) setSelectedLocation(saved)
+      if (localStorage.getItem('kitchenSound') === 'on') { setSoundOn(true); soundRef.current = true }
+    } catch {}
+    const onStorage = () => {
+      try { setSelectedLocation(localStorage.getItem('selectedLocation') || 'All Locations') } catch {}
     }
-    window.addEventListener('storage', handleStorage)
-    return () => { supabase.removeChannel(channel); clearInterval(timer); window.removeEventListener('storage', handleStorage) }
+    window.addEventListener('storage', onStorage)
+    return () => { supabase.removeChannel(channel); clearInterval(poll); clearInterval(timer); window.removeEventListener('storage', onStorage) }
   }, [])
 
-  const visibleOrders = selectedLocation === 'All Locations'
-    ? orders
-    : orders.filter(o => o.location === selectedLocation)
+  const toggleSound = () => {
+    const v = !soundOn
+    setSoundOn(v)
+    soundRef.current = v
+    try { localStorage.setItem('kitchenSound', v ? 'on' : 'off') } catch {}
+    if (v) beep()
+  }
+
+  const visible = selectedLocation === 'All Locations' ? orders : orders.filter(o => o.location === selectedLocation)
 
   const updateStatus = async (id: string, status: string) => {
     setUpdatingId(id)
     await supabase.from('orders').update({ status }).eq('id', id)
-    await fetch()
+    await load()
     setUpdatingId(null)
   }
 
-  const getElapsed = (createdAt: string) => {
-    const diffSec = Math.floor((currentTime.getTime() - new Date(createdAt).getTime()) / 1000)
-    if (diffSec < 60) return `${diffSec}s ago`
-    const diffMin = Math.floor(diffSec / 60)
-    if (diffMin < 60) return diffMin === 1 ? '1 min ago' : `${diffMin} mins ago`
-    const diffHr = Math.floor(diffMin / 60)
-    const remMin = diffMin % 60
-    if (remMin === 0) return diffHr === 1 ? '1 hr ago' : `${diffHr} hrs ago`
-    return `${diffHr}h ${remMin}m ago`
-  }
+  const minsAgo = (createdAt: string) => Math.max(0, Math.floor((now.getTime() - new Date(createdAt).getTime()) / 60000))
+  const timeChip = (m: number) =>
+    m < 10 ? { bg: '#F0FDF4', text: '#15803D' } : m < 20 ? { bg: '#FFFBEB', text: '#B45309' } : { bg: '#FEF2F2', text: '#B91C1C' }
 
-  const getElapsedColor = (createdAt: string) => {
-    const diff = Math.floor((currentTime.getTime() - new Date(createdAt).getTime()) / 60000)
-    if (diff < 10) return '#22c55e'
-    if (diff < 20) return '#f59e0b'
-    return '#ef4444'
-  }
+  // Store status for the header
+  const storeLabel = (() => {
+    if (selectedLocation === 'All Locations') {
+      const openCount = locations.filter(l => getStoreStatus(l).open).length
+      return { text: `${openCount} of ${locations.length} stores open`, open: openCount > 0 }
+    }
+    const loc = locations.find(l => l.name === selectedLocation)
+    if (!loc) return null
+    const st = getStoreStatus(loc)
+    return { text: st.open ? 'Open · taking orders' : st.message, open: st.open }
+  })()
 
-  // Group by status
-  const grouped = STATUS_ORDER.reduce((acc, s) => {
-    acc[s] = visibleOrders.filter(o => o.status === s)
-    return acc
-  }, {} as Record<string, any[]>)
+  const shortName = selectedLocation === 'All Locations' ? 'All stores' : selectedLocation.replace(/^Angie's Kebabs & Burgers\s*-\s*/, '')
 
   return (
-    <div className="min-h-screen" style={{ background: '#111', color: 'white' }}>
+    <div className="min-h-screen" style={{ background: '#F5F5F5', color: '#1A1A1A' }}>
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid #222' }}>
+      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 bg-white" style={{ borderBottom: '1px solid #EBEBEB' }}>
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm"
-            style={{ background: '#F5C800', color: '#1A1A1A' }}>A</div>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold" style={{ background: '#F5C800', color: '#1A1A1A' }}>A</div>
           <div>
-            <div className="font-bold text-white">Kitchen Display</div>
-            <div className="text-xs" style={{ color: '#888' }}>{visibleOrders.length} active orders</div>
+            <div className="font-bold text-lg">Kitchen · {shortName}</div>
+            <div className="text-sm" style={{ color: '#777' }}>{visible.length} active {visible.length === 1 ? 'order' : 'orders'}</div>
           </div>
         </div>
-        <div className="text-right">
-          <div className="font-mono text-xl font-bold text-white">
-            {currentTime.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-          </div>
-          <div className="text-xs" style={{ color: '#888' }}>
-            {currentTime.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}
+        <div className="flex items-center gap-3 flex-wrap">
+          {storeLabel && (
+            <span className="text-sm font-medium px-3 py-1.5 rounded-full"
+              style={{ background: storeLabel.open ? '#F0FDF4' : '#FEF2F2', color: storeLabel.open ? '#15803D' : '#B91C1C' }}>
+              {storeLabel.text}
+            </span>
+          )}
+          <button onClick={toggleSound}
+            className="text-sm font-medium px-3 py-1.5 rounded-full"
+            style={{ background: soundOn ? '#FFF8DB' : '#FFFFFF', color: soundOn ? '#8A6800' : '#555', border: `1px solid ${soundOn ? '#F5C800' : '#E5E5E5'}` }}>
+            {soundOn ? '🔔 Sound on' : '🔕 Turn sound on'}
+          </button>
+          <div className="text-2xl font-bold tabular-nums">
+            {now.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Melbourne' })}
           </div>
         </div>
       </div>
 
-      {visibleOrders.length === 0 ? (
-        <div className="flex items-center justify-center h-96">
+      {visible.length === 0 ? (
+        <div className="flex items-center justify-center" style={{ height: '60vh' }}>
           <div className="text-center">
             <div className="text-6xl mb-4">✅</div>
-            <div className="text-xl font-bold text-white">All Clear!</div>
-            <div className="text-sm mt-2" style={{ color: '#888' }}>No active orders</div>
+            <div className="text-2xl font-bold">All clear</div>
+            <div className="text-base mt-2" style={{ color: '#777' }}>New orders will appear here{soundOn ? ' with a sound' : ''}.</div>
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-0 h-full" style={{ minHeight: 'calc(100vh - 73px)' }}>
-          {STATUS_ORDER.map(status => {
-            const cfg = STATUS_CONFIG[status]
-            const statusOrders = grouped[status] || []
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4">
+          {COLUMNS.map(col => {
+            const list = visible.filter(o => col.statuses.includes(o.status))
             return (
-              <div key={status} className="flex flex-col" style={{ borderRight: '1px solid #222' }}>
-                {/* Column header */}
-                <div className="px-4 py-3 flex items-center justify-between sticky top-0"
-                  style={{ background: '#1a1a1a', borderBottom: '1px solid #222' }}>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ background: cfg.border }} />
-                    <span className="font-semibold text-sm text-white">{cfg.label}</span>
-                  </div>
-                  <span className="text-xs px-2 py-0.5 rounded-full font-bold"
-                    style={{ background: cfg.bg, color: cfg.text }}>{statusOrders.length}</span>
+              <div key={col.key}>
+                <div className="flex items-center justify-between mb-3 px-1">
+                  <span className="font-bold text-lg">{col.label}</span>
+                  <span className="text-sm font-bold px-3 py-0.5 rounded-full" style={{ background: col.chipBg, color: col.chipText }}>{list.length}</span>
                 </div>
-
-                {/* Orders */}
-                <div className="flex-1 p-3 space-y-3 overflow-y-auto">
-                  {statusOrders.length === 0 ? (
-                    <div className="text-center py-8 text-xs" style={{ color: '#444' }}>No orders</div>
-                  ) : (
-                    statusOrders.map(order => (
-                      <div key={order.id} className="rounded-2xl p-4"
-                        style={{ background: '#1a1a1a', border: `1px solid ${cfg.border}40` }}>
-                        {/* Order header */}
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-mono font-bold text-sm" style={{ color: cfg.border }}>
-                            {order.order_number}
-                          </span>
-                          <span className="text-xs font-semibold" style={{ color: getElapsedColor(order.created_at) }}>
-                            {getElapsed(order.created_at)}
+                <div className="space-y-3">
+                  {list.length === 0 && (
+                    <div className="text-center py-10 text-sm rounded-2xl" style={{ color: '#AAA', border: '1px dashed #DDD' }}>No orders</div>
+                  )}
+                  {list.map(order => {
+                    const m = minsAgo(order.created_at)
+                    const chip = timeChip(m)
+                    return (
+                      <div key={order.id} className="bg-white rounded-2xl p-4"
+                        style={{ border: col.key === 'new' ? `2px solid ${col.accent}` : '1px solid #EBEBEB' }}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-2xl font-bold">{order.order_number}</span>
+                          <span className="text-sm font-semibold px-2.5 py-1 rounded-full" style={{ background: chip.bg, color: chip.text }}>
+                            {m === 0 ? 'Just now' : `${m} min`}
                           </span>
                         </div>
-
-                        <div className="font-semibold text-sm text-white mb-1">{order.customer_name || '—'}</div>
-
-                        <div className="flex items-center gap-2 mb-3">
-                          <span className="text-xs px-2 py-0.5 rounded-full"
-                            style={{ background: order.order_type === 'pickup' ? '#FFF9E0' : '#EFF6FF', color: order.order_type === 'pickup' ? '#8A6800' : '#1d4ed8' }}>
-                            {order.order_type === 'pickup' ? '🏃 Pickup' : '🛵 Delivery'}
-                          </span>
+                        <div className="text-sm mt-1 mb-3" style={{ color: '#666' }}>
+                          {order.customer_name || 'Customer'} · {order.order_type === 'delivery' ? '🛵 Delivery' : '🏃 Pickup'}
+                          {selectedLocation === 'All Locations' && order.location && (
+                            <> · {String(order.location).replace(/^Angie's Kebabs & Burgers\s*-\s*/, '')}</>
+                          )}
                         </div>
 
-                        {/* Items */}
-                        <div className="space-y-1 mb-3">
+                        <div className="space-y-2">
                           {(order.items || []).map((item: any, i: number) => (
-                            <div key={i} className="flex items-start gap-2 text-xs">
-                              <span className="font-bold mt-0.5" style={{ color: '#F5C800', minWidth: 16 }}>×{item.quantity}</span>
-                              <div>
-                                <div className="text-white">{item.name}</div>
-                                {item.selectedOptions?.length > 0 && (
-                                  <div style={{ color: '#888' }}>
-                                    {item.selectedOptions.map((o: any) => o.optionName).join(', ')}
-                                  </div>
-                                )}
+                            <div key={i}>
+                              <div className="text-base font-semibold">
+                                <span style={{ color: '#B08900' }}>{item.quantity} ×</span> {item.name}
                               </div>
+                              {item.selectedOptions?.length > 0 && (
+                                <div className="text-sm ml-7" style={{ color: '#666' }}>
+                                  {item.selectedOptions.map((o: any) => o.optionName || o.name).filter(Boolean).join(', ')}
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
 
                         {order.notes && (
-                          <div className="text-xs p-2 rounded-lg mb-3 italic" style={{ background: '#2a2a2a', color: '#f59e0b' }}>
+                          <div className="text-sm p-2.5 rounded-xl mt-3" style={{ background: '#FFFBEB', color: '#92400E' }}>
                             ⚠️ {order.notes}
                           </div>
                         )}
 
-                        {/* Action button */}
-                        {cfg.next && (
-                          <button
-                            onClick={() => updateStatus(order.id, cfg.next)}
-                            disabled={updatingId === order.id}
-                            className="w-full py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
-                            style={{ background: cfg.border, color: status === 'pending' ? '#1A1A1A' : 'white' }}>
-                            {updatingId === order.id ? '...' : cfg.nextLabel}
-                          </button>
-                        )}
+                        <button
+                          onClick={() => updateStatus(order.id, col.next)}
+                          disabled={updatingId === order.id}
+                          className="w-full mt-4 rounded-xl text-base font-bold transition-all disabled:opacity-50"
+                          style={{ background: col.btnBg, color: col.btnText, height: 52 }}>
+                          {updatingId === order.id ? '…' : col.button}
+                        </button>
                       </div>
-                    ))
-                  )}
+                    )
+                  })}
                 </div>
               </div>
             )
