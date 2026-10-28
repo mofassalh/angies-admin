@@ -69,6 +69,10 @@ export default function KitchenPage() {
   }
 
   useEffect(() => {
+    // Close orders left open for more than 3 hours so nothing stays stuck as "New"
+    const closeStale = () => { supabase.rpc('close_stale_orders').then(() => {}, () => {}) }
+    closeStale()
+    const staleTimer = setInterval(closeStale, 10 * 60 * 1000)
     load()
     supabase.from('locations').select('id, name, is_open, opening_hours').eq('restaurant_id', RESTAURANT_ID).eq('is_active', true)
       .then(({ data }) => setLocations(data || []))
@@ -87,7 +91,7 @@ export default function KitchenPage() {
       try { setSelectedLocation(localStorage.getItem('selectedLocation') || 'All Locations') } catch {}
     }
     window.addEventListener('storage', onStorage)
-    return () => { supabase.removeChannel(channel); clearInterval(poll); clearInterval(timer); window.removeEventListener('storage', onStorage) }
+    return () => { supabase.removeChannel(channel); clearInterval(poll); clearInterval(staleTimer); clearInterval(timer); window.removeEventListener('storage', onStorage) }
   }, [])
 
   const toggleSound = () => {
