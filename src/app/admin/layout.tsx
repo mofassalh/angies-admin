@@ -96,6 +96,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname()
   const supabase = createClient()
 
+  // Show the store this device has saved (pages filter by it), not always "All Locations"
+  useEffect(() => {
+    try { const saved = localStorage.getItem('selectedLocation'); if (saved) setSelectedLocation(saved) } catch {}
+  }, [])
+
   useEffect(() => {
     const init = async () => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -132,6 +137,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const resetTimeout = () => {
       clearTimeout(timeout)
       timeout = setTimeout(async () => {
+        // Kitchen screens sit untouched for hours: never auto-logout there
+        if (window.location.pathname.startsWith('/admin/kitchen')) { resetTimeout(); return }
         await supabase.auth.signOut()
         router.push("/login")
       }, 30 * 60 * 1000)

@@ -18,10 +18,28 @@ const COLUMNS = [
   { key: 'ready', label: 'Ready', statuses: ['ready'], next: 'completed', button: 'Picked up', accent: '#22C55E', btnBg: '#16A34A', btnText: '#FFFFFF', chipBg: '#F0FDF4', chipText: '#15803D' },
 ]
 
+let audioCtx: any = null
+function getAudio() {
+  try {
+    if (!audioCtx) {
+      const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext
+      audioCtx = new Ctx()
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume()
+  } catch {}
+  return audioCtx
+}
+
+// Store names can differ slightly between website, app and admin ("Angie's Kebabs & Burgers - St Albans" vs "St Albans")
+function areaKey(name: string | null | undefined) {
+  const last = String(name || '').split(/\s+-\s+/).pop() || ''
+  return last.toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
 function beep() {
   try {
-    const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext
-    const ctx = new Ctx()
+    const ctx = getAudio()
+    if (!ctx) return
     const play = (freq: number, start: number) => {
       const o = ctx.createOscillator()
       const g = ctx.createGain()
@@ -46,19 +64,27 @@ export default function KitchenPage() {
   const [now, setNow] = useState(new Date())
   const [selectedLocation, setSelectedLocation] = useState('All Locations')
   const [soundOn, setSoundOn] = useState(false)
+  const [soundLocked, setSoundLocked] = useState(false)
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
+  const [loadError, setLoadError] = useState(false)
+  const [online, setOnline] = useState(true)
   const seenIds = useRef<Set<string> | null>(null)
   const soundRef = useRef(false)
   const supabase = createClient()
 
   const load = async () => {
-    const since = new Date(Date.now() - STALE_HOURS * 3600 * 1000).toISOString()
-    const { data } = await supabase
+    // No time filter based on the device clock (tablets can have the wrong time).
+    // Orders older than 3 hours are closed on the server by close_stale_orders.
+    const { data, error } = await supabase
       .from('orders')
       .select('*')
       .eq('restaurant_id', RESTAURANT_ID)
       .in('status', ACTIVE)
-      .gte('created_at', since)
       .order('created_at', { ascending: true })
+      .limit(200)
+    if (error) { setLoadError(true); return }
+    setLoadError(false)
+    setLastUpdate(new Date())
     const list = data || []
     // Sound for orders we haven't seen before
     if (seenIds.current) {
@@ -86,13 +112,50 @@ export default function KitchenPage() {
     try {
       const saved = localStorage.getItem('selectedLocation')
       if (saved) setSelectedLocation(saved)
-      if (localStorage.getItem('kitchenSound') === 'on') { setSoundOn(true); soundRef.current = true }
+      if (localStorage.getItem('kitchenSound') === 'on') { setSoundOn(true); soundRef.current = true; setSoundLocked(true) }
     } catch {}
     const onStorage = () => {
       try { setSelectedLocation(localStorage.getItem('selectedLocation') || 'All Locations') } catch {}
     }
     window.addEventListener('storage', onStorage)
-    return () => { supabase.removeChannel(channel); clearInterval(poll); clearInterval(staleTimer); clearInterval(timer); window.removeEventListener('storage', onStorage) }
+
+    // Keep the screen on while the kitchen page is open (tablets/phones)
+    let wakeLock: any = null
+    const keepAwake = async () => {
+      try { if ('wakeLock' in navigator && document.visibilityState === 'visible') wakeLock = await (navigator as any).wakeLock.request('screen') } catch {}
+    }
+    keepAwake()
+    // When the screen wakes up or the tab comes back, fetch orders straight away
+    const onVisible = () => { if (document.visibilityState === 'visible') { load(); keepAwake() } }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    window.addEventListener('pageshow', onVisible)
+    // Phones/tablets only allow sound after a tap
+    const unlock = () => { const ctx = getAudio(); if (ctx && ctx.state === 'running') setSoundLocked(false); keepAwake() }
+    window.addEventListener('pointerdown', unlock)
+    window.addEventListener('touchstart', unlock)
+    const onNet = () => { setOnline(navigator.onLine); if (navigator.onLine) load() }
+    window.addEventListener('online', onNet)
+    window.addEventListener('offline', onNet)
+    setOnline(navigator.onLine)
+    // A screen left open for a whole day picks up the newest version of this page
+    const openedAt = Date.now()
+    const freshen = setInterval(() => {
+      if (Date.now() - openedAt > 8 * 3600 * 1000 && (seenIds.current?.size || 0) === 0) window.location.reload()
+    }, 10 * 60 * 1000)
+
+    return () => {
+      supabase.removeChannel(channel); clearInterval(poll); clearInterval(staleTimer); clearInterval(timer); clearInterval(freshen)
+      window.removeEventListener('storage', onStorage)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+      window.removeEventListener('pageshow', onVisible)
+      window.removeEventListener('pointerdown', unlock)
+      window.removeEventListener('touchstart', unlock)
+      window.removeEventListener('online', onNet)
+      window.removeEventListener('offline', onNet)
+      try { wakeLock?.release() } catch {}
+    }
   }, [])
 
   const toggleSound = () => {
@@ -100,10 +163,12 @@ export default function KitchenPage() {
     setSoundOn(v)
     soundRef.current = v
     try { localStorage.setItem('kitchenSound', v ? 'on' : 'off') } catch {}
-    if (v) beep()
+    if (v) { getAudio(); setSoundLocked(false); beep() }
   }
 
-  const visible = selectedLocation === 'All Locations' ? orders : orders.filter(o => o.location === selectedLocation)
+  const visible = selectedLocation === 'All Locations'
+    ? orders
+    : orders.filter(o => !areaKey(o.location) || areaKey(o.location) === areaKey(selectedLocation))
 
   const updateStatus = async (id: string, status: string) => {
     setUpdatingId(id)
@@ -122,7 +187,7 @@ export default function KitchenPage() {
       const openCount = locations.filter(l => getStoreStatus(l).open).length
       return { text: `${openCount} of ${locations.length} stores open`, open: openCount > 0 }
     }
-    const loc = locations.find(l => l.name === selectedLocation)
+    const loc = locations.find(l => areaKey(l.name) === areaKey(selectedLocation))
     if (!loc) return null
     const st = getStoreStatus(loc)
     return { text: st.open ? 'Open · taking orders' : st.message, open: st.open }
@@ -138,10 +203,18 @@ export default function KitchenPage() {
           <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold" style={{ background: '#F5C800', color: '#1A1A1A' }}>A</div>
           <div>
             <div className="font-bold text-lg">Kitchen · {shortName}</div>
-            <div className="text-sm" style={{ color: '#777' }}>{visible.length} active {visible.length === 1 ? 'order' : 'orders'}</div>
+            <div className="text-sm" style={{ color: '#777' }}>
+              {visible.length} active {visible.length === 1 ? 'order' : 'orders'}
+              {lastUpdate && <> · updated {lastUpdate.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Melbourne' })}</>}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
+          {(!online || loadError) && (
+            <span className="text-sm font-semibold px-3 py-1.5 rounded-full" style={{ background: '#FEF2F2', color: '#B91C1C' }}>
+              {!online ? 'No internet' : 'Cannot load orders'} · retrying
+            </span>
+          )}
           {storeLabel && (
             <span className="text-sm font-medium px-3 py-1.5 rounded-full"
               style={{ background: storeLabel.open ? '#F0FDF4' : '#FEF2F2', color: storeLabel.open ? '#15803D' : '#B91C1C' }}>
@@ -159,6 +232,12 @@ export default function KitchenPage() {
         </div>
       </div>
 
+      {soundOn && soundLocked && (
+        <button onClick={() => { getAudio(); setSoundLocked(false); beep() }}
+          className="w-full text-base font-bold py-3" style={{ background: '#FFF8DB', color: '#8A6800', borderBottom: '1px solid #F5C800' }}>
+          🔔 Tap here to turn the order sound on for this screen
+        </button>
+      )}
       {visible.length === 0 ? (
         <div className="flex items-center justify-center" style={{ height: '60vh' }}>
           <div className="text-center">
@@ -195,6 +274,7 @@ export default function KitchenPage() {
                         </div>
                         <div className="text-sm mt-1 mb-3" style={{ color: '#666' }}>
                           {order.customer_name || 'Customer'} · {order.order_type === 'delivery' ? '🛵 Delivery' : '🏃 Pickup'}
+                          {!order.location && <> · <span style={{ color: '#B45309' }}>Store not set</span></>}
                           {selectedLocation === 'All Locations' && order.location && (
                             <> · {String(order.location).replace(/^Angie's Kebabs & Burgers\s*-\s*/, '')}</>
                           )}
