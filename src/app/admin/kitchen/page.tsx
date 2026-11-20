@@ -275,8 +275,8 @@ export default function KitchenPage() {
                         <div className="text-sm mt-1 mb-3" style={{ color: '#666' }}>
                           {order.customer_name || 'Customer'} · {order.order_type === 'delivery' ? '🛵 Delivery' : '🏃 Pickup'}
                           {!order.location && <> · <span style={{ color: '#B45309' }}>Store not set</span></>}
-                          {selectedLocation === 'All Locations' && order.location && (
-                            <> · {String(order.location).replace(/^Angie's Kebabs & Burgers\s*-\s*/, '')}</>
+                          {order.location && (
+                            <> · <span style={{ fontWeight: 600, color: '#1A1A1A' }}>📍 {String(order.location).replace(/^Angie's Kebabs & Burgers\s*-\s*/, '')}</span></>
                           )}
                         </div>
 
