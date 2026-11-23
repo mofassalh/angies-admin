@@ -1,17 +1,22 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import { RESTAURANT_ID } from '@/lib/restaurant'
+import { useSelectedLocation, itemForStore } from '@/lib/adminFilters'
 
 const COURSES = ['Starter', 'Main', 'Dessert', 'Drinks', 'Sides']
 
 export default function CoursesPage() {
-  const [items, setItems] = useState<any[]>([])
+  const [allItems, setItems] = useState<any[]>([])
+  const selectedLocation = useSelectedLocation()
+  // Top-bar store: show items for every store + that store's own items
+  const items = allItems.filter(i => itemForStore(i.location, selectedLocation))
   const [loading, setLoading] = useState(true)
   const [activeCourse, setActiveCourse] = useState('Main')
   const supabase = createClient()
 
   const fetch = async () => {
-    const { data } = await supabase.from('menu_items').select('*').order('name')
+    const { data } = await supabase.from('menu_items').select('*').or(`restaurant_id.eq.${RESTAURANT_ID},restaurant_id.is.null`).order('name')
     setItems(data || [])
     setLoading(false)
   }

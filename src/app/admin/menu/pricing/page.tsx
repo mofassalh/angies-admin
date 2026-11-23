@@ -1,10 +1,15 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import { RESTAURANT_ID } from '@/lib/restaurant'
+import { useSelectedLocation, itemForStore } from '@/lib/adminFilters'
 import { Save } from 'lucide-react'
 
 export default function PricingPage() {
-  const [items, setItems] = useState<any[]>([])
+  const [allItems, setItems] = useState<any[]>([])
+  const selectedLocation = useSelectedLocation()
+  // Top-bar store: show items for every store + that store's own items
+  const items = allItems.filter(i => itemForStore(i.location, selectedLocation))
   const [prices, setPrices] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -15,7 +20,7 @@ export default function PricingPage() {
   const supabase = createClient()
 
   const fetch = async () => {
-    const { data } = await supabase.from('menu_items').select('*').order('category').order('name')
+    const { data } = await supabase.from('menu_items').select('*').or(`restaurant_id.eq.${RESTAURANT_ID},restaurant_id.is.null`).order('category').order('name')
     setItems(data || [])
     const map: Record<string, string> = {}
     data?.forEach((i: any) => { map[i.id] = String(i.price) })

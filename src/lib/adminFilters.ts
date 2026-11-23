@@ -96,8 +96,20 @@ export function inRange(ts: string, r: RangeKey, fromDate?: string, toDateStr?: 
   return true
 }
 
+// "Angie's Kebabs & Burgers - St Albans" / "St Albans" -> "stalbans"
+export function areaKey(v: string | null | undefined) {
+  return String(v || '').split(/\s+-\s+/).pop()!.toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
 export function matchesLocation(orderLocation: string | null | undefined, selected: string) {
-  return selected === ALL_LOCATIONS || orderLocation === selected
+  return !selected || selected === ALL_LOCATIONS || orderLocation === selected || (!!orderLocation && areaKey(orderLocation) === areaKey(selected))
+}
+
+// Menu item belongs to the top-bar store: items for every store ('all' / empty) + that store's own items
+export function itemForStore(itemLocation: string | null | undefined, selected: string) {
+  const loc = String(itemLocation || '').trim()
+  if (!selected || selected === ALL_LOCATIONS) return true
+  return !loc || loc.toLowerCase() === 'all' || areaKey(loc) === areaKey(selected)
 }
 
 // The location picked in the admin top bar (shared by every page)
