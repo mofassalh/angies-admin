@@ -38,7 +38,7 @@ export default function MenuPage() {
   const supabase = createClient()
 
   const fetchItems = async () => {
-    const { data } = await supabase.from('menu_items').select('*').order('created_at', { ascending: false })
+    const { data } = await supabase.from('menu_items').select('*').or(`restaurant_id.eq.${RESTAURANT_ID},restaurant_id.is.null`).order('created_at', { ascending: false })
     setItems(data || [])
     setLoading(false)
   }
@@ -141,6 +141,7 @@ export default function MenuPage() {
       available: form.available,
       location: form.location,
       customizations: form.customizations || [],
+      restaurant_id: RESTAURANT_ID,
     }
     if (editing) {
       await supabase.from('menu_items').update(payload).eq('id', form.id)
