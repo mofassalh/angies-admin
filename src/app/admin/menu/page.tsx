@@ -29,6 +29,15 @@ export default function MenuPage() {
   const [form, setForm] = useState<any>(empty)
   const [editing, setEditing] = useState(false)
   const [filterCat, setFilterCat] = useState('All')
+  const [store, setStore] = useState('All Locations')
+
+  // Follow the store picked in the top bar
+  useEffect(() => {
+    const read = () => { try { setStore(localStorage.getItem('selectedLocation') || 'All Locations') } catch {} }
+    read()
+    window.addEventListener('storage', read)
+    return () => window.removeEventListener('storage', read)
+  }, [])
   const [uploading, setUploading] = useState(false)
   const [customCat, setCustomCat] = useState(false)
   const [showCustomizations, setShowCustomizations] = useState(false)
@@ -52,7 +61,7 @@ export default function MenuPage() {
 
   const allCategories = [...new Set(items.map(i => i.category).filter(Boolean))]
 
-  const openAdd = () => { setForm(empty); setEditing(false); setCustomCat(false); setShowCustomizations(false); setShowModal(true) }
+  const openAdd = () => { setForm({ ...empty, location: storeArea }); setEditing(false); setCustomCat(false); setShowCustomizations(false); setShowModal(true) }
   const openEdit = (item: MenuItem) => {
     setForm({ ...item, price: String(item.price), customizations: item.customizations || [] })
     setEditing(true)
@@ -163,14 +172,23 @@ export default function MenuPage() {
     fetchItems()
   }
 
-  const filtered = filterCat === 'All' ? items : items.filter(i => i.category === filterCat)
+  // "Angie's Kebabs & Burgers - St Albans" / "St Albans" -> "stalbans"
+  const areaKey = (v: any) => String(v || '').split(/\s+-\s+/).pop()!.toLowerCase().replace(/[^a-z0-9]/g, '')
+  const allStores = !store || store === 'All Locations'
+  const storeArea = allStores ? 'all' : (LOCATIONS.find(l => l !== 'all' && areaKey(l) === areaKey(store)) || 'all')
+  // A store shows items for every store ('all') plus its own items
+  const storeItems = allStores ? items : items.filter(i => {
+    const loc = String(i.location || '').trim()
+    return !loc || loc.toLowerCase() === 'all' || areaKey(loc) === areaKey(store)
+  })
+  const filtered = filterCat === 'All' ? storeItems : storeItems.filter(i => i.category === filterCat)
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold" style={{ color: '#1A1A1A' }}>Menu</h2>
-          <p className="text-sm mt-1" style={{ color: '#888' }}>{items.length} items</p>
+          <p className="text-sm mt-1" style={{ color: '#888' }}>{storeItems.length} items{allStores ? '' : ` · ${storeArea !== 'all' ? storeArea : store}`}</p>
         </div>
         <button onClick={openAdd}
           className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm"
